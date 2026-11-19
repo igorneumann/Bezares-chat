@@ -1,0 +1,17 @@
+Options -Indexes
+RewriteEngine On
+
+# Algunos hostings eliminan la cabecera Authorization: la conservamos
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Archivos reales (widget.js, uploads...) se sirven directamente; el resto va a index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [L,QSA]
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Cache-Control "public, max-age=3600"
+  </FilesMatch>
+</IfModule>

@@ -1,0 +1,4 @@
+config.php
+public/uploads/*
+!public/uploads/.htaccess
+*.log

@@ -1,0 +1,23 @@
+Options -Indexes
+# Nunca ejecutar ni servir como página nada que no sea un adjunto
+<FilesMatch "\.(php\d?|phtml|phar|pl|py|cgi|sh|html?|js|svg|htaccess)$">
+  Require all denied
+</FilesMatch>
+<IfModule mod_mime.c>
+  RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8
+  RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8
+</IfModule>
+<IfModule mod_mime.c>
+  AddType audio/webm .weba
+  AddType audio/ogg .opus .oga
+  AddType audio/mp4 .m4a
+  AddType audio/amr .amr
+</IfModule>
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Content-Security-Policy "default-src 'none'; sandbox"
+  # Los documentos se descargan en lugar de abrirse en el navegador
+  <FilesMatch "\.(doc|docx|xls|xlsx|txt)$">
+    Header set Content-Disposition "attachment"
+  </FilesMatch>
+</IfModule>
