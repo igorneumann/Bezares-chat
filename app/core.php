@@ -25,9 +25,9 @@ class Core
         return DB::row('SELECT * FROM messages WHERE id = ?', array((int) $id));
     }
 
-    private static function preview($body, $type)
+    private static function preview($body, $type, $name = '')
     {
-        $icons = array('image' => '📷 Imagen', 'audio' => '🎤 Audio', 'video' => '🎬 Vídeo', 'file' => '📎 Archivo');
+        $icons = array('image' => '📷 Imagen', 'audio' => '🎤 Audio', 'video' => '🎬 Vídeo', 'file' => '📄 ' . ($name !== '' ? $name : 'Documento'));
         $p = trim(preg_replace('/\s+/u', ' ', (string) $body));
         if ($p === '' && $type) {
             $p = $icons[$type] ?? '📎';
@@ -52,7 +52,7 @@ class Core
             'ext_id'          => (string) ($o['ext_id'] ?? ''),
             'created_at'      => isset($o['created_at']) ? (int) $o['created_at'] : now_ms(),
         ));
-        self::update($conv_id, $dir === 'system' ? array() : array('last_preview' => self::preview($body, $m ? $m['type'] : '')));
+        self::update($conv_id, $dir === 'system' ? array() : array('last_preview' => self::preview($body, $m ? $m['type'] : '', $m ? $m['name'] : '')));
         return $id;
     }
 

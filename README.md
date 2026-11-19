@@ -5,7 +5,7 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
 | Pieza | Repositorio | Qué hace |
 |---|---|---|
 | Servidor PHP | [Bezares-chat](https://github.com/igorneumann/Bezares-chat) | Base de datos, API, WhatsApp/Facebook, traducción, horario, recordatorios, limpieza, **panel de administración y estadísticas** |
-| Cliente Windows | [BZChat-client](https://github.com/igorneumann/BZChat-client) | Programa portable (un `.exe` de 65 KB) para contestar chats, con timbre de teléfono |
+| Cliente Windows | [BZChat-client](https://github.com/igorneumann/BZChat-client) | Programa portable (un `.exe` de 70 KB) para contestar chats, con timbre de teléfono |
 | Plugin WordPress | [BZChat-plugin](https://github.com/igorneumann/BZChat-plugin) | Solo inserta el icono flotante en la web. No usa la base de datos de WordPress |
 
 ```
@@ -23,7 +23,7 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
 - Al empezar, el bot pide **nombre y correo** (mensajes personalizables) mientras **suena el aviso** en recepción.
 - **Horario laboral** y festivos, con respuesta automática fuera de horario.
 - **Traducción automática con ChatGPT**: los mensajes que no estén en español ni inglés se traducen para el agente, y las respuestas se envían en el idioma del cliente.
-- Recepción de **imágenes, audio y vídeo** (y documentos).
+- Envío y recepción de **imágenes, audio, vídeo y documentos** (PDF, Word, Excel, PowerPoint, OpenDocument, RTF, TXT, CSV) por la web, WhatsApp y Facebook.
 - **Recordatorio** automático si nadie contesta en X minutos y **seguimiento** si el cliente no responde en X horas, para mantener abierta la ventana de 24 h de WhatsApp.
 - **Limpieza automática** de chats inactivos tras X meses, adjuntos incluidos.
 - **Estadísticas** para el administrador: chats recibidos y contestados, porcentaje contestado en menos de X minutos, tiempo de respuesta medio y mediano, en tiempo real y en horario laboral, por agente, por canal y por día.

@@ -28,7 +28,7 @@ Auditoría del código del 19/11/2026, sobre el servidor, el widget, el plugin y
 - Límites de longitud en textos, nombres y correos; correos validados.
 
 ### Archivos subidos
-- Lista blanca de extensiones (imagen, audio, vídeo, PDF y ofimática), validación real de las imágenes, nombre aleatorio de 96 bits y límite de tamaño.
+- Lista blanca de extensiones (imagen, audio, vídeo, PDF, Word, Excel, PowerPoint, OpenDocument, RTF, TXT, CSV), **comprobación de la firma interna** de cada documento (un HTML o ejecutable renombrado a .pdf o .docx se rechaza), validación real de las imágenes, nombre aleatorio de 96 bits y límite de tamaño.
 - En `uploads/` se **prohíbe ejecutar o servir** PHP, HTML, JS y SVG. Se añaden `nosniff` y una CSP `sandbox`, y los documentos se fuerzan a descarga.
 - Los adjuntos deben ser públicos con URL impredecible, porque WhatsApp y Messenger descargan por enlace los que envían los agentes.
 

@@ -24,10 +24,10 @@
 
   var browserLang = (navigator.language || 'es').slice(0, 2).toLowerCase();
   var UI = {
-    es: { placeholder: 'Escribe un mensaje…', send: 'Enviar', attach: 'Adjuntar imagen, audio o vídeo', record: 'Grabar audio', stop: 'Detener y enviar',
+    es: { placeholder: 'Escribe un mensaje…', send: 'Enviar', attach: 'Adjuntar imagen, audio, vídeo o documento', record: 'Grabar audio', stop: 'Detener y enviar',
       online: 'Normalmente respondemos en pocos minutos', offline: 'Fuera de horario: te responderemos lo antes posible',
       error: 'No se pudo enviar. Inténtalo de nuevo.', tooBig: 'El archivo es demasiado grande', close: 'Cerrar', open: 'Abrir chat' },
-    en: { placeholder: 'Type a message…', send: 'Send', attach: 'Attach image, audio or video', record: 'Record audio', stop: 'Stop and send',
+    en: { placeholder: 'Type a message…', send: 'Send', attach: 'Attach image, audio, video or document', record: 'Record audio', stop: 'Stop and send',
       online: 'We usually reply in a few minutes', offline: 'Outside business hours: we will reply as soon as possible',
       error: 'Could not send. Please try again.', tooBig: 'The file is too large', close: 'Close', open: 'Open chat' }
   };
@@ -92,7 +92,7 @@
       (T.privacy ? '<div class="bzc-privacy">' + (C.privacyUrl ? '<a href="' + esc(C.privacyUrl) + '" target="_blank" rel="noopener">' + esc(T.privacy) + '</a>' : esc(T.privacy)) + '</div>' : '') +
       '<form class="bzc-form">' +
         '<button type="button" class="bzc-ico bzc-att" title="' + esc(T.attach) + '" aria-label="' + esc(T.attach) + '">' + svgClip() + '</button>' +
-        '<input type="file" class="bzc-file" accept="image/*,audio/*,video/*" hidden>' +
+        '<input type="file" class="bzc-file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.csv" hidden>' +
         '<textarea class="bzc-input" rows="1" placeholder="' + esc(T.placeholder) + '" maxlength="4000"></textarea>' +
         '<button type="button" class="bzc-ico bzc-mic" title="' + esc(T.record) + '" aria-label="' + esc(T.record) + '">' + svgMic() + '</button>' +
         '<button type="submit" class="bzc-ico bzc-send" title="' + esc(T.send) + '" aria-label="' + esc(T.send) + '">' + svgSend() + '</button>' +
@@ -141,7 +141,7 @@
       if (m.media_type === 'image') html += '<a href="' + u + '" target="_blank" rel="noopener"><img src="' + u + '" alt="" loading="lazy"></a>';
       else if (m.media_type === 'audio') html += '<audio controls preload="none" src="' + u + '"></audio>';
       else if (m.media_type === 'video') html += '<video controls preload="metadata" src="' + u + '"></video>';
-      else html += '<a href="' + u + '" target="_blank" rel="noopener">📎 ' + esc(m.media_name || 'archivo') + '</a>';
+      else html += '<a href="' + u + '" target="_blank" rel="noopener" class="bzc-doc">📄 ' + esc(m.media_name || 'documento') + '</a>';
     }
     if (m.body) html += '<div class="bzc-text">' + linkify(m.body) + '</div>';
     html += '<div class="bzc-time">' + time(m.created_at) + '</div>';

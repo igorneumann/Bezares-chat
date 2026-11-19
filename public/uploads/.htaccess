@@ -17,7 +17,7 @@ Options -Indexes
   Header set X-Content-Type-Options "nosniff"
   Header set Content-Security-Policy "default-src 'none'; sandbox"
   # Los documentos se descargan en lugar de abrirse en el navegador
-  <FilesMatch "\.(doc|docx|xls|xlsx|txt)$">
+  <FilesMatch "\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|txt|csv)$">
     Header set Content-Disposition "attachment"
   </FilesMatch>
 </IfModule>

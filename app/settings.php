@@ -17,7 +17,7 @@ class Settings
                 array('k' => 'widget_color', 'label' => 'Color del widget', 'type' => 'color', 'def' => '#0057a8'),
                 array('k' => 'widget_title_es', 'label' => 'Título del widget (ES)', 'type' => 'text', 'def' => 'Chatea con nosotros'),
                 array('k' => 'widget_title_en', 'label' => 'Título del widget (EN)', 'type' => 'text', 'def' => 'Chat with us'),
-                array('k' => 'max_upload_mb', 'label' => 'Tamaño máximo de archivo (MB)', 'type' => 'number', 'def' => 16, 'help' => 'WhatsApp admite hasta 16 MB en audio/vídeo y 5 MB en imágenes.'),
+                array('k' => 'max_upload_mb', 'label' => 'Tamaño máximo de archivo (MB)', 'type' => 'number', 'def' => 16, 'help' => 'Se admiten imágenes, audio, vídeo y documentos (PDF, Word, Excel, PowerPoint, OpenDocument, RTF, TXT, CSV). Límites de WhatsApp: 5 MB imágenes, 16 MB audio/vídeo, 100 MB documentos. Comprueba también upload_max_filesize y post_max_size de PHP.'),
                 array('k' => 'privacy_url', 'label' => 'URL de la política de privacidad', 'type' => 'text', 'def' => 'https://bezares.com/politica-de-privacidad/', 'help' => 'RGPD: el widget muestra un aviso con este enlace antes de pedir nombre y correo.'),
                 array('k' => 'privacy_es', 'label' => 'Aviso de privacidad (ES)', 'type' => 'text', 'def' => 'Al chatear aceptas nuestra política de privacidad.'),
                 array('k' => 'privacy_en', 'label' => 'Aviso de privacidad (EN)', 'type' => 'text', 'def' => 'By chatting you accept our privacy policy.'),
