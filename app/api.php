@@ -87,6 +87,7 @@ class Api
                 array('POST', '#^/conversations/(\d+)/accept$#', 'conv_accept'),
                 array('POST', '#^/conversations/(\d+)/transfer$#', 'conv_transfer'),
                 array('POST', '#^/conversations/(\d+)/email$#', 'conv_email'),
+                array('POST', '#^/conversations/(\d+)/resolve$#', 'conv_resolve'),
                 array('DELETE', '#^/conversations/(\d+)$#', 'conv_delete'),
                 array('GET', '#^/templates$#', 'templates_list'),
                 array('POST', '#^/templates$#', 'template_save'),
@@ -379,6 +380,16 @@ class Api
         return array('conversation' => Core::conv_out(Core::conv($c['id'])));
     }
 
+    /* ---------------------------------------------------------- resolver */
+
+    private static function conv_resolve($id)
+    {
+        list($a, $c) = self::conv_for_agent($id);
+        $on = filter_var(self::param('resolved', true), FILTER_VALIDATE_BOOLEAN);
+        Core::resolve($c, $a, $on);
+        return array('conversation' => Core::conv_out(Core::conv($c['id'])));
+    }
+
     /* ---------------------------------------------------------- borrar una conversación */
 
     /** Borra definitivamente la conversación, sus mensajes y sus adjuntos (solo recepción y administración). */
@@ -403,12 +414,30 @@ class Api
     private static function conv_email($id)
     {
         list($a, $c) = self::conv_for_agent($id);
-        $to = strtolower(trim((string) self::param('to')));
-        if (!valid_email($to)) {
-            throw new ApiError('Correo de destino no válido');
+        // Uno o varios destinatarios separados por comas (o punto y coma). Máximo 10.
+        $to = array();
+        foreach (preg_split('/[,;\s]+/', strtolower((string) self::param('to'))) as $e) {
+            $e = trim($e);
+            if ($e === '') {
+                continue;
+            }
+            if (!valid_email($e)) {
+                throw new ApiError('Correo de destino no válido: ' . $e);
+            }
+            $to[$e] = $e;
         }
-        if (!rate_limit('email:' . $a['id'], 20, 3600)) {
-            throw new ApiError('Has enviado demasiados correos en la última hora. Inténtalo más tarde.', 429);
+        $to = array_values($to);
+        if (!$to) {
+            throw new ApiError('Indica al menos un correo de destino');
+        }
+        if (count($to) > 10) {
+            throw new ApiError('Como máximo 10 destinatarios por envío');
+        }
+        // El límite cuenta cada destinatario (20 correos por hora y agente).
+        foreach ($to as $unused) {
+            if (!rate_limit('email:' . $a['id'], 20, 3600)) {
+                throw new ApiError('Has enviado demasiados correos en la última hora. Inténtalo más tarde.', 429);
+            }
         }
         $rows = DB::rows("SELECT * FROM messages WHERE conversation_id = ? AND direction <> 'system' ORDER BY id LIMIT 2000", array($c['id']));
         $company = (string) Settings::get('company_name');
@@ -437,16 +466,43 @@ class Api
             throw new ApiError('La conversación no tiene mensajes');
         }
         $start = (new DateTimeImmutable('@' . intdiv((int) $c['created_at'], 1000)))->setTimezone($tz)->format('d/m/Y');
-        $intro = "Hola" . ($c['name'] !== '' ? ' ' . $c['name'] : '') . ",\n\n"
-            . "Te enviamos la transcripción de tu conversación con " . $company . " del " . $start . ".\n"
-            . "Los enlaces a archivos adjuntos caducan en 7 días.\n\n"
-            . str_repeat('-', 50) . "\n\n";
-        $sent = Mailer::send($to, 'Tu conversación con ' . $company . ' (' . $start . ')', $intro . implode("\n\n", $lines) . "\n\n" . str_repeat('-', 50) . "\n" . $company);
-        if (!$sent) {
+        // Introducción: la que escribe el agente (con variables) o, si la deja vacía, la predeterminada.
+        $intro = trim(clean_text(self::param('intro'), 3000));
+        if ($intro === '') {
+            $intro = self::default_email_intro();
+        }
+        $intro = strtr($intro, array(
+            '{nombre}'  => $c['name'],
+            '{empresa}' => $company,
+            '{fecha}'   => $start,
+            '{agente}'  => $a['name'],
+        ));
+        $intro = preg_replace('/^Hola ,/u', 'Hola,', $intro); // sin nombre de cliente
+        $body = $intro . "\n\n" . str_repeat('-', 50) . "\n\n" . implode("\n\n", $lines) . "\n\n" . str_repeat('-', 50) . "\n" . $company;
+        $subject = 'Tu conversación con ' . $company . ' (' . $start . ')';
+        // Un correo por destinatario: nadie ve las direcciones de los demás.
+        $ok = array();
+        $fail = array();
+        foreach ($to as $e) {
+            if (Mailer::send($e, $subject, $body)) {
+                $ok[] = $e;
+            } else {
+                $fail[] = $e;
+            }
+        }
+        if ($ok) {
+            Core::note($c['id'], $a['name'] . ' envió la conversación por correo a ' . implode(', ', $ok), $a['id']);
+        }
+        if (!$ok) {
             throw new ApiError('No se pudo enviar el correo. Revisa la configuración de correo del servidor (config.php).', 502);
         }
-        Core::note($c['id'], $a['name'] . ' envió la conversación por correo a ' . $to, $a['id']);
-        return array('ok' => true);
+        return array('ok' => true, 'sent' => $ok, 'failed' => $fail);
+    }
+
+    /** Texto predeterminado de la introducción del correo (con variables que se sustituyen al enviar). */
+    public static function default_email_intro()
+    {
+        return "Hola {nombre},\n\nTe enviamos la transcripción de tu conversación con {empresa} del {fecha}.\nLos enlaces a archivos adjuntos caducan en 7 días.";
     }
 
     /* ---------------------------------------------------------- plantillas (solo recepción) */

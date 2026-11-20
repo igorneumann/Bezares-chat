@@ -122,7 +122,8 @@ class Core
             ));
             $c = self::conv($id);
             // El primer mensaje del cliente es su consulta; el bot responde después pidiendo el nombre (ver bot_flow).
-        } elseif ($c['status'] === 'closed') {
+        } elseif ($c['status'] === 'closed' || $c['status'] === 'resolved') {
+            // El cliente vuelve a escribir en un chat resuelto/cerrado: se reabre y vuelve a sonar.
             self::update($c['id'], array('status' => 'open', 'accepted_by' => 0, 'accepted_at' => 0));
             self::note($c['id'], 'Conversación reabierta por el cliente');
         }
@@ -243,12 +244,36 @@ class Core
         self::note($c['id'], $agent['name'] . ($status === 'closed' ? ' cerró la conversación' : ' reabrió la conversación'), $agent['id']);
     }
 
+    /**
+     * Marca (o desmarca) la conversación como resuelta. Al resolverla se deja de contar el tiempo de respuesta
+     * (resolved_at, se guarda la primera vez), deja de sonar y no se envían recordatorios automáticos.
+     */
+    public static function resolve($c, $agent, $on)
+    {
+        $now = now_ms();
+        if ($on) {
+            $f = array('status' => 'resolved');
+            if (!(int) $c['resolved_at']) {
+                $f['resolved_at'] = $now;
+            }
+            if (!(int) $c['accepted_at']) {
+                $f['accepted_at'] = $now;
+                $f['accepted_by'] = $agent['id'];
+            }
+            self::update($c['id'], $f);
+            self::note($c['id'], $agent['name'] . ' marcó la conversación como resuelta', $agent['id']);
+        } else {
+            self::update($c['id'], array('status' => 'open'));
+            self::note($c['id'], $agent['name'] . ' reabrió la conversación', $agent['id']);
+        }
+    }
+
     /* ---------------------------------------------------------- salida JSON */
 
     public static function conv_out($c)
     {
         $o = array();
-        foreach (array('id', 'assigned_to', 'accepted_at', 'created_at', 'updated_at', 'last_customer_at', 'first_response_at') as $k) {
+        foreach (array('id', 'assigned_to', 'accepted_at', 'created_at', 'updated_at', 'last_customer_at', 'first_response_at', 'resolved_at') as $k) {
             $o[$k] = (int) $c[$k];
         }
         foreach (array('channel', 'name', 'email', 'phone', 'lang', 'country', 'page_url', 'status', 'onboarding', 'last_preview') as $k) {

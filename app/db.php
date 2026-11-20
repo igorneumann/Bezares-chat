@@ -70,7 +70,7 @@ class DB
         self::exec('DELETE FROM `' . $table . '` WHERE ' . $w, array_values($where));
     }
 
-    const SCHEMA_VERSION = '5';
+    const SCHEMA_VERSION = '6';
 
     /** Aplica el esquema si la versión guardada no es la actual (tras actualizar el código). */
     public static function ensure_schema()
@@ -185,6 +185,9 @@ class DB
         }
         // Columnas añadidas en versiones posteriores (instalaciones existentes).
         $cols = self::col('SHOW COLUMNS FROM conversations');
+        if (!in_array('resolved_at', $cols, true)) {
+            self::pdo()->exec("ALTER TABLE conversations ADD resolved_at BIGINT NOT NULL DEFAULT 0 AFTER first_response_by");
+        }
         if (!in_array('country', $cols, true)) {
             self::pdo()->exec("ALTER TABLE conversations ADD country CHAR(2) NOT NULL DEFAULT '' AFTER lang");
         }

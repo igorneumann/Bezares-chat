@@ -23,14 +23,14 @@ class Stats
         $start = (new DateTimeImmutable($from . ' 00:00:00', tz()))->getTimestamp() * 1000;
         $end = (new DateTimeImmutable($to . ' 23:59:59', tz()))->getTimestamp() * 1000 + 999;
         $thr = max(1, (int) $threshold_min) * 60000;
-        $rows = DB::rows('SELECT channel, created_at, first_response_at, first_response_by FROM conversations WHERE created_at BETWEEN ? AND ?', array($start, $end));
+        $rows = DB::rows('SELECT channel, created_at, first_response_at, first_response_by, resolved_at, accepted_by FROM conversations WHERE created_at BETWEEN ? AND ?', array($start, $end));
 
         $names = array();
         foreach (Auth::agents() as $a) {
             $names[(int) $a['id']] = $a['name'];
         }
         $s = array(
-            'total' => count($rows), 'answered' => 0, 'within' => 0, 'within_biz' => 0, 'in_hours' => 0,
+            'total' => count($rows), 'answered' => 0, 'resolved' => 0, 'within' => 0, 'within_biz' => 0, 'in_hours' => 0,
             'resp' => array(), 'resp_biz' => array(), 'by_channel' => array(), 'by_agent' => array(), 'by_day' => array(),
         );
         foreach ($rows as $r) {
@@ -43,14 +43,21 @@ class Stats
             if (Hours::is_open((int) $r['created_at'])) {
                 $s['in_hours']++;
             }
-            if (!(int) $r['first_response_at']) {
+            // Fin del tiempo de respuesta: la primera respuesta de una persona o, si fue antes, la marca de "resuelta".
+            $fr = (int) $r['first_response_at'];
+            $rs = (int) $r['resolved_at'];
+            if ($rs) {
+                $s['resolved']++;
+            }
+            $endAt = ($fr && $rs) ? min($fr, $rs) : ($fr ?: $rs);
+            if (!$endAt) {
                 continue;
             }
             $s['answered']++;
             $s['by_channel'][$ch]['answered']++;
             $s['by_day'][$day]['answered']++;
-            $d = (int) $r['first_response_at'] - (int) $r['created_at'];
-            $db = Hours::business_ms((int) $r['created_at'], (int) $r['first_response_at']);
+            $d = $endAt - (int) $r['created_at'];
+            $db = Hours::business_ms((int) $r['created_at'], $endAt);
             $s['resp'][] = $d;
             $s['resp_biz'][] = $db;
             if ($d <= $thr) {
@@ -59,7 +66,7 @@ class Stats
             if ($db <= $thr) {
                 $s['within_biz']++;
             }
-            $aid = (int) $r['first_response_by'];
+            $aid = ($fr && $fr === $endAt) ? (int) $r['first_response_by'] : (int) $r['accepted_by'];
             if (!isset($s['by_agent'][$aid])) {
                 $s['by_agent'][$aid] = array('name' => $names[$aid] ?? '(eliminado)', 'answered' => 0, 'resp' => array(), 'resp_biz' => array());
             }
@@ -78,6 +85,7 @@ class Stats
             'total'       => $s['total'],
             'answered'    => $s['answered'],
             'unanswered'  => $s['total'] - $s['answered'],
+            'resolved'    => $s['resolved'],
             'in_hours'    => $s['in_hours'],
             'within'      => $s['within'],
             'within_biz'  => $s['within_biz'],

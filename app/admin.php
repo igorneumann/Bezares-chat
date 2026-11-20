@@ -700,8 +700,9 @@ CSS;
             . '<button class="btn btn-primary">Calcular</button><span class="muted">o</span>' . $quick . '</form>'
             . '<div class="kpis">'
             . $kpi('Chats recibidos', $s['total'], $s['in_hours'] . ' en horario laboral')
-            . $kpi('Contestados', $s['answered'], self::pct($s['answered'], $s['total']) . ' del total', 'ok')
-            . $kpi('Sin contestar', $s['unanswered'], self::pct($s['unanswered'], $s['total']) . ' del total', $s['unanswered'] ? 'bad' : '')
+            . $kpi('Atendidos', $s['answered'], self::pct($s['answered'], $s['total']) . ' del total (respondidos o resueltos)', 'ok')
+            . $kpi('Resueltos', $s['resolved'], self::pct($s['resolved'], $s['total']) . ' del total', 'ok')
+            . $kpi('Sin atender', $s['unanswered'], self::pct($s['unanswered'], $s['total']) . ' del total', $s['unanswered'] ? 'bad' : '')
             . $kpi('Contestados en &lt; ' . $thr . ' min', $s['within'], self::pct($s['within'], $s['total']) . ' del total', 'ok')
             . $kpi('En &lt; ' . $thr . ' min laborables', $s['within_biz'], self::pct($s['within_biz'], $s['total']) . ' del total', 'ok')
             . $kpi('Tiempo de respuesta medio', self::dur($s['avg']), 'Mediana: ' . self::dur($s['median']), 'warn')
@@ -730,7 +731,7 @@ CSS;
         $html .= '<div class="split">'
             . '<div class="card"><h2>Por agente (primera respuesta)</h2><div class="table-wrap"><table><thead><tr><th>Agente</th><th>Contestados</th><th>Tiempo medio</th><th>Medio laboral</th></tr></thead><tbody>' . ($agents ?: '<tr><td colspan="4" class="muted">Sin datos</td></tr>') . '</tbody></table></div></div>'
             . '<div class="card"><h2>Por canal</h2><div class="table-wrap"><table><thead><tr><th>Canal</th><th>Chats</th><th>Contestados</th></tr></thead><tbody>' . ($channels ?: '<tr><td colspan="3" class="muted">Sin datos</td></tr>') . '</tbody></table></div></div>'
-            . '</div><p class="muted">Los tiempos se miden desde que el cliente inicia el chat hasta la primera respuesta de una persona. El tiempo laboral solo cuenta las horas dentro del horario configurado.</p>';
+            . '</div><p class="muted">Los tiempos se miden desde que el cliente inicia el chat hasta la primera respuesta de una persona o, si ocurre antes, hasta que se marca como resuelta (en ese momento se deja de contar). El tiempo laboral solo cuenta las horas dentro del horario configurado.</p>';
         self::layout('Estadísticas', 'Del ' . date('d/m/Y', strtotime($from)) . ' al ' . date('d/m/Y', strtotime($to)), $html, $me);
     }
 }
