@@ -118,12 +118,30 @@ function is_https()
         || (cfg('client_ip_header') && isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 }
 
+/** Valor de frame-ancestors: la propia web + webs de confianza de la configuración. */
+function frame_ancestors()
+{
+    static $v = null;
+    if ($v === null) {
+        $list = array("'self'");
+        try {
+            $list = array_merge($list, Settings::trusted_origins());
+        } catch (Exception $e) {
+            // Sin base de datos (p. ej. antes de instalar): solo la propia web.
+        }
+        $v = implode(' ', array_unique($list));
+    }
+    return $v;
+}
+
 /** Cabeceras de seguridad comunes a todas las respuestas. */
 function security_headers()
 {
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    header('X-Frame-Options: DENY');
+    // Solo las "webs de confianza" pueden mostrar chat.bezares.com dentro de un iframe (p. ej. Nextcloud → Sitios externos).
+    // Se usa CSP frame-ancestors (admite lista) en lugar de X-Frame-Options (solo DENY/SAMEORIGIN).
+    header('Content-Security-Policy: frame-ancestors ' . frame_ancestors());
     header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
     if (is_https()) {
         header('Strict-Transport-Security: max-age=31536000');

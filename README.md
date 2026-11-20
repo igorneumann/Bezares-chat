@@ -63,7 +63,9 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
    - `data-devices`: cualquier combinación de `desktop`, `tablet` y `mobile`
 3. Si la web tiene una **política de seguridad de contenidos (CSP)** estricta, debe permitir `https://chat.bezares.com` en `script-src`, `style-src`, `connect-src`, `img-src` y `media-src`. Para grabar notas de voz, además, el micrófono no debe estar bloqueado por `Permissions-Policy`.
 
-**Nextcloud** (`cloud.bezares.com`) envía una CSP estricta y no permite editar el HTML de sus páginas. Hace falta una app que inserte scripts, como *JSLoader* desde la tienda de apps de Nextcloud, con un fragmento que cree la etiqueta:
+**Mostrar chat.bezares.com dentro de un iframe** (por ejemplo, el panel `/admin` en Nextcloud → app *Sitios externos* / *External sites*): basta con que la web esté en la lista de confianza. El servidor envía `Content-Security-Policy: frame-ancestors` con esa lista, y el resto de webs ven el aviso «ha rechazado la conexión». Si tras añadirla sigue apareciendo, comprueba que `https://chat.bezares.com/admin/` abre en una pestaña normal (si no abre, el servidor no está accesible) y que el hosting no añade su propia cabecera `X-Frame-Options` (el `.htaccess` incluido la elimina en Apache).
+
+Para el **widget** en **Nextcloud** (`cloud.bezares.com`) envía una CSP estricta y no permite editar el HTML de sus páginas. Hace falta una app que inserte scripts, como *JSLoader* desde la tienda de apps de Nextcloud, con un fragmento que cree la etiqueta:
 
 ```js
 var s = document.createElement('script');

@@ -127,7 +127,7 @@ class Admin
         session_start();
         header('Cache-Control: no-store');
         // Solo se permite el JavaScript propio (admin.js: botón "Mostrar contraseña").
-        header("Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+        header("Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors " . frame_ancestors() . "; base-uri 'none'");
 
         // Caducidad por inactividad (2 h) de la sesión sin "recordar"
         if (!empty($_SESSION['admin_id']) && time() - (int) ($_SESSION['last'] ?? 0) > 7200) {

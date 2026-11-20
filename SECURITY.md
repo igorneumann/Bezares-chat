@@ -51,7 +51,8 @@ Auditoría del código del 19/11/2026, sobre el servidor, el widget, el plugin y
 - `config.php` y `app/` quedan fuera de la raíz web (y bloqueados por `.htaccess` si no se puede).
 - `display_errors` desactivado y errores internos genéricos para el público. El detalle solo va al log.
 - Las claves (OpenAI, Meta) nunca se muestran en el panel, solo «guardado».
-- Cabeceras `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` y `Cache-Control: no-store` en la API y el panel.
+- Anti-clickjacking con CSP `frame-ancestors`: solo la propia web y las webs de confianza pueden mostrar chat.bezares.com en un iframe (se elimina `X-Frame-Options`, que no admite listas).
+- Cabeceras `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` y `Cache-Control: no-store` en la API y el panel.
 
 ### Privacidad (RGPD)
 - El widget muestra un **aviso de privacidad con enlace** a la política antes de pedir nombre y correo (configurable).

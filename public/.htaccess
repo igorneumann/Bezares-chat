@@ -10,6 +10,9 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [L,QSA]
 
 <IfModule mod_headers.c>
+  # Algunos paneles de hosting añaden X-Frame-Options por defecto: lo quitamos para que se aplique
+  # la lista de "webs de confianza" (CSP frame-ancestors que envía la aplicación).
+  Header always unset X-Frame-Options
   <FilesMatch "\.(js|css)$">
     Header set Access-Control-Allow-Origin "*"
     Header set Cache-Control "public, max-age=3600"
