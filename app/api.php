@@ -301,13 +301,12 @@ class Api
 
     private static function visible_sql($a, $alias = '')
     {
-        if ($a['role'] === 'receptionist') {
-            return '1=1'; // recepción ve todos los chats
+        if (Roles::can($a, 'view_all')) {
+            return '1=1'; // permiso «Ver todos los chats»
         }
-        // Administrador y comercial: solo los chats transferidos/asignados a ellos.
-        // Comercial: si no hay recepción conectada, también los nuevos sin asignar (para no dejarlos sin atender).
+        // Sus chats asignados/transferidos y, si recibe chats nuevos, también los nuevos sin asignar.
         $own = $alias . 'assigned_to = ' . (int) $a['id'];
-        return ($a['role'] === 'sales' && !Auth::reception_online()) ? '(' . $own . ' OR ' . $alias . 'assigned_to = 0)' : $own;
+        return Auth::gets_new($a) ? '(' . $own . ' OR ' . $alias . 'assigned_to = 0)' : $own;
     }
 
     /** Sincronización incremental (cada ~2 s). */
@@ -378,9 +377,7 @@ class Api
     private static function conv_transfer($id)
     {
         list($a, $c) = self::conv_for_agent($id);
-        if ($a['role'] === 'sales') {
-            throw new ApiError('Solo recepción puede transferir', 403);
-        }
+        Auth::require_perm($a, 'transfer');
         $to = Auth::agent((int) self::param('agent_id'));
         if (!$to || !(int) $to['active']) {
             throw new ApiError('Usuario de destino no válido');
@@ -394,6 +391,7 @@ class Api
     private static function conv_resolve($id)
     {
         list($a, $c) = self::conv_for_agent($id);
+        Auth::require_perm($a, 'resolve');
         $on = filter_var(self::param('resolved', true), FILTER_VALIDATE_BOOLEAN);
         Core::resolve($c, $a, $on);
         return array('conversation' => Core::conv_out(Core::conv($c['id'])));
@@ -405,9 +403,7 @@ class Api
     private static function conv_delete($id)
     {
         list($a, $c) = self::conv_for_agent($id);
-        if (!in_array($a['role'], array('receptionist', 'admin'), true)) {
-            throw new ApiError('Solo recepción y administración pueden borrar conversaciones', 403);
-        }
+        Auth::require_perm($a, 'delete');
         foreach (DB::col("SELECT media_url FROM messages WHERE conversation_id = ? AND media_url <> ''", array($c['id'])) as $u) {
             Media::delete_stored($u);
         }
@@ -423,6 +419,7 @@ class Api
     private static function conv_email($id)
     {
         list($a, $c) = self::conv_for_agent($id);
+        Auth::require_perm($a, 'email');
         // Uno o varios destinatarios separados por comas (o punto y coma). Máximo 10.
         $to = array();
         foreach (preg_split('/[,;\s]+/', strtolower((string) self::param('to'))) as $e) {
@@ -519,9 +516,7 @@ class Api
     private static function require_receptionist()
     {
         $a = Auth::require_agent();
-        if ($a['role'] !== 'receptionist') {
-            throw new ApiError('Las plantillas son solo para recepción', 403);
-        }
+        Auth::require_perm($a, 'templates');
         return $a;
     }
 

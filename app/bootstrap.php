@@ -32,6 +32,7 @@ require __DIR__ . '/stats.php';
 require __DIR__ . '/cron.php';
 require __DIR__ . '/mail.php';
 require __DIR__ . '/geo.php';
+require __DIR__ . '/roles.php';
 
 /** Error de API con código HTTP. */
 class ApiError extends Exception

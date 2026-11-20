@@ -19,7 +19,7 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
 ## Funciones
 
 - Chats desde la **web, WhatsApp y Facebook Messenger**, contestados desde un único programa.
-- Usuarios con roles: **Administrador**, **Recepcionista** (ve y recibe todos los chats y transfiere) y **Comercial**. Comerciales y administradores solo ven los chats que les transfieren (excepción: si no hay ninguna recepcionista conectada, los comerciales ven y reciben los chats nuevos).
+- Usuarios con roles: **Administrador**, **Recepcionista** y **Comercial**, y además **roles personalizados**: en `/admin` → Configuración → **Roles** se crean roles y se marca qué puede hacer cada uno (ver todos los chats, recibir chats nuevos, atender si no hay recepción, transferir, borrar, plantillas, enviar por correo, marcar como resuelta y entrar en el panel).
 - **Plantillas** de respuesta para recepción y envío de la **transcripción por correo** desde el cliente de Windows.
 - El visitante escribe su consulta y **la primera respuesta automática le pide el nombre** (y después el correo), en todos los canales. Mientras tanto suena el aviso: **solo en recepción** y, si no hay ninguna recepcionista conectada, en los comerciales, que entonces también ven los chats nuevos sin asignar.
 - Si el visitante **recarga** la página sigue en el mismo chat. Si la **cierra** y vuelve pasados X minutos (configurable), empieza un chat nuevo.
@@ -82,6 +82,9 @@ document.head.appendChild(s);
 y añadir `https://chat.bezares.com` a los dominios permitidos de la CSP en esa misma app. Si la app no permite ampliar la CSP, el navegador bloqueará el widget aunque la web esté en la lista de confianza.
 
 ### WhatsApp y Facebook (Meta)
+
+En `/admin` → Configuración → **WhatsApp y Facebook** hay una guía paso a paso (cómo crear la app, obtener el App Secret, el token permanente de WhatsApp con un usuario del sistema y el Page access token), con las URLs de webhook y el token de verificación de tu instalación listos para copiar. Resumen:
+
 
 1. En [developers.facebook.com](https://developers.facebook.com/apps/) crea una app de tipo *Business* y añade los productos **WhatsApp** y **Messenger**.
 2. **WhatsApp**: copia el *Phone number ID* y crea un token permanente de *System User* con permiso `whatsapp_business_messaging`.

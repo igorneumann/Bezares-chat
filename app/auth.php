@@ -1,8 +1,7 @@
 <?php
-/** Usuarios (administrador, recepcionista, comercial) y sesiones por token. */
+/** Usuarios (con roles y permisos configurables, ver roles.php) y sesiones por token. */
 class Auth
 {
-    const ROLES = array('admin' => 'Administrador', 'receptionist' => 'Recepcionista', 'sales' => 'Comercial');
     const TTL_MS = 2592000000; // 30 días
 
     private static $current = false;
@@ -32,8 +31,10 @@ class Auth
         return array(
             'id'     => (int) $a['id'],
             'name'   => $a['name'],
-            'role'   => $a['role'],
-            'active' => (int) $a['active'],
+            'role'      => $a['role'],
+            'role_name' => Roles::name($a['role']),
+            'perms'     => Roles::perms($a['role']), // el cliente muestra u oculta botones según estos permisos
+            'active'    => (int) $a['active'],
             'online' => (now_ms() - (int) $a['last_seen']) < 60000,
         );
     }
@@ -234,7 +235,7 @@ class Auth
             $f['email'] = $email;
         }
         if (isset($d['role'])) {
-            if (!isset(self::ROLES[$d['role']])) {
+            if (!Roles::exists($d['role'])) {
                 throw new ApiError('Rol no válido');
             }
             $f['role'] = $d['role'];
@@ -276,31 +277,40 @@ class Auth
         DB::exec('UPDATE conversations SET assigned_to = 0, accepted_at = 0, accepted_by = 0, updated_at = ? WHERE assigned_to = ?', array(now_ms(), (int) $id));
     }
 
-    /** ¿Hay alguna recepcionista activa con el programa abierto (sincronizó en el último minuto)? */
+    /** ¿Hay alguien con el permiso «Recibir chats nuevos» conectado (sincronizó en el último minuto)? */
     public static function reception_online()
     {
         static $online = null;
         if ($online === null) {
-            $online = (int) DB::val("SELECT COUNT(*) FROM agents WHERE role = 'receptionist' AND active = 1 AND last_seen > ?", array(now_ms() - 60000)) > 0;
+            $roles = Roles::with_perm('receive_new');
+            if (!$roles) {
+                return $online = false;
+            }
+            $in = implode(',', array_fill(0, count($roles), '?'));
+            $online = (int) DB::val("SELECT COUNT(*) FROM agents WHERE role IN ($in) AND active = 1 AND last_seen > ?", array_merge($roles, array(now_ms() - 60000))) > 0;
         }
         return $online;
     }
 
+    /** ¿Recibe este agente los chats nuevos sin asignar (por permiso, o como respaldo si no hay recepción)? */
+    public static function gets_new($a)
+    {
+        return Roles::can($a, 'receive_new') || (Roles::can($a, 'fallback_new') && !self::reception_online());
+    }
+
     /**
-     * Los comerciales ven los chats asignados a ellos y, si no hay ninguna recepcionista conectada,
-     * también los chats nuevos sin asignar (para poder atenderlos).
+     * Visibilidad según los permisos del rol: «Ver todos los chats», los asignados/transferidos a él,
+     * y los chats nuevos sin asignar si los recibe.
      */
     public static function can_see($a, $c)
     {
         if (!$a || !$c) {
             return false;
         }
-        // Recepción ve todos los chats; administradores y comerciales, solo los que les han transferido.
-        if ($a['role'] === 'receptionist' || (int) $c['assigned_to'] === (int) $a['id']) {
+        if (Roles::can($a, 'view_all') || (int) $c['assigned_to'] === (int) $a['id']) {
             return true;
         }
-        // Excepción: sin ninguna recepcionista conectada, los comerciales ven los chats nuevos para atenderlos.
-        return $a['role'] === 'sales' && !(int) $c['assigned_to'] && !self::reception_online();
+        return !(int) $c['assigned_to'] && self::gets_new($a);
     }
 
     /** ¿Debe sonar este chat (abierto y sin atender) para este agente? */
@@ -310,10 +320,14 @@ class Auth
         if ($assigned) {
             return $assigned === (int) $a['id']; // transferido o asignado a mí
         }
-        // Chat nuevo: solo recepción; si no hay ninguna recepcionista conectada, los comerciales.
-        if ($a['role'] === 'receptionist') {
-            return true;
+        return self::gets_new($a); // chat nuevo
+    }
+
+    /** Lanza 403 si el agente no tiene el permiso. */
+    public static function require_perm($a, $perm)
+    {
+        if (!Roles::can($a, $perm)) {
+            throw new ApiError('Tu rol no tiene permiso para esto (' . Roles::PERMS[$perm][0] . ')', 403);
         }
-        return $a['role'] === 'sales' && !self::reception_online();
     }
 }

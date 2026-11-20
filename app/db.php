@@ -70,7 +70,7 @@ class DB
         self::exec('DELETE FROM `' . $table . '` WHERE ' . $w, array_values($where));
     }
 
-    const SCHEMA_VERSION = '6';
+    const SCHEMA_VERSION = '7';
 
     /** Aplica el esquema si la versión guardada no es la actual (tras actualizar el código). */
     public static function ensure_schema()
@@ -161,6 +161,12 @@ class DB
               k VARCHAR(64) NOT NULL PRIMARY KEY,
               v MEDIUMTEXT NOT NULL
             ) $e",
+            "CREATE TABLE IF NOT EXISTS roles (
+              role_key VARCHAR(40) NOT NULL PRIMARY KEY,
+              name VARCHAR(60) NOT NULL,
+              permissions TEXT NOT NULL,
+              builtin TINYINT(1) NOT NULL DEFAULT 0
+            ) $e",
             "CREATE TABLE IF NOT EXISTS templates (
               id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
               title VARCHAR(120) NOT NULL,
@@ -185,6 +191,9 @@ class DB
         }
         // Columnas añadidas en versiones posteriores (instalaciones existentes).
         $cols = self::col('SHOW COLUMNS FROM conversations');
+        // Claves de rol personalizadas más largas que los roles originales.
+        self::pdo()->exec("ALTER TABLE agents MODIFY role VARCHAR(40) NOT NULL DEFAULT 'sales'");
+        Roles::ensure_defaults();
         if (!in_array('resolved_at', $cols, true)) {
             self::pdo()->exec("ALTER TABLE conversations ADD resolved_at BIGINT NOT NULL DEFAULT 0 AFTER first_response_by");
         }

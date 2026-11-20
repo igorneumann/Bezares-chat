@@ -105,14 +105,14 @@ class Admin
         // Sesión recordada: cookie con token de un solo agente (se revoca al cambiar la contraseña).
         if (!$a && !empty($_COOKIE[self::REMEMBER_COOKIE])) {
             $a = Auth::agent_by_token($_COOKIE[self::REMEMBER_COOKIE]);
-            if ($a && $a['role'] === 'admin') {
+            if ($a && Roles::can($a, 'admin_panel')) {
                 self::start_admin_session($a);
             } else {
                 self::set_remember_cookie('', time() - 3600);
                 $a = null;
             }
         }
-        self::$me = ($a && (int) $a['active'] && $a['role'] === 'admin') ? $a : false;
+        self::$me = ($a && (int) $a['active'] && Roles::can($a, 'admin_panel')) ? $a : false;
         return self::$me ?: null;
     }
 
@@ -276,6 +276,21 @@ input[type=color]{width:60px;height:40px;border:1px solid #d3d9e3;border-radius:
 .tabs .btn.on{background:#fff;color:var(--brand);box-shadow:var(--shadow)}
 .savebar{position:sticky;bottom:0;background:rgba(243,245,249,.92);backdrop-filter:blur(6px);padding:14px 0;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);margin-top:6px}
 .card .savebar{background:rgba(255,255,255,.95);margin:6px -22px -22px;padding:14px 22px;border-radius:0 0 var(--r) var(--r)}
+.roles th,.roles td{vertical-align:top}
+.roles .role-col{text-align:center;min-width:130px}
+.roles .role-col input[type=text]{text-align:center;font-weight:600;padding:6px 8px}
+.roles .role-col small{display:block;margin-top:4px;font-weight:400;text-transform:none;letter-spacing:0}
+.roles input.perm{width:20px;height:20px;accent-color:var(--brand);cursor:pointer}
+.del-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line);margin:0}
+.del-row:last-child{border-bottom:0}
+.del-row span{flex:1}
+.guide{margin-bottom:20px}
+.guide details{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fafbfd}
+.guide summary{cursor:pointer;padding:11px 14px;font-weight:600}
+.guide summary:hover{background:var(--brand-l);border-radius:10px}
+.guide ol{margin:0;padding:4px 18px 12px 38px}
+.guide li{margin-bottom:6px;line-height:1.5}
+.guide code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;word-break:break-all}
 .info-box{background:var(--brand-l);color:#1d3f66;border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:14px;word-break:break-word}
 /* Tablas */
 .table-wrap{overflow-x:auto;margin:0 -22px;padding:0 22px}
@@ -286,6 +301,7 @@ tr:last-child td{border-bottom:0}
 td.actions{text-align:right;white-space:nowrap}
 .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600}
 .b-admin{background:#efe7fb;color:#5b2ca0}.b-receptionist{background:#e3f1fd;color:#0b5cad}.b-sales{background:#e7f6ec;color:#1a7f37}
+.b-custom{background:#fff4e5;color:#b54708}
 .b-on{background:var(--ok-l);color:var(--ok)}.b-off{background:#eef0f3;color:var(--muted)}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#cfd6e1;margin-right:8px}.dot.on{background:#22c55e;box-shadow:0 0 0 3px #dcfce7}
 .hours td{padding:8px 10px}
@@ -348,7 +364,7 @@ CSS;
         }
         echo self::head($title) . '<body><div class="layout">'
             . '<aside class="side"><div class="brand"><img class="logo" src="/brand/bezares-chat-icon-dark.svg" alt="" width="38" height="38">Bezares Chat</div><nav class="nav" aria-label="Menú">' . $nav . '</nav>'
-            . '<div class="side-foot"><div class="who">' . self::h($me['name']) . '</div><div class="role">Administrador</div>'
+            . '<div class="side-foot"><div class="who">' . self::h($me['name']) . '</div><div class="role">' . self::h(Roles::name($me['role'])) . '</div>'
             . '<form method="post" action="/admin/logout" class="inline">' . self::csrf_field() . '<button class="btn btn-sm">Cerrar sesión</button></form></div></aside>'
             . '<main class="main"><div class="page-head"><div><h1>' . self::h($title) . '</h1>' . ($subtitle ? '<p>' . self::h($subtitle) . '</p>' : '') . '</div>' . $headActions . '</div>'
             . self::flash() . $body . '</main></div></body></html>';
@@ -407,7 +423,7 @@ CSS;
             $email = (string) ($_POST['email'] ?? '');
             try {
                 $a = Auth::check_credentials($email, $_POST['password'] ?? '');
-                if ($a['role'] !== 'admin') {
+                if (!Roles::can($a, 'admin_panel')) {
                     throw new ApiError('Solo los administradores pueden entrar en el panel. Los agentes usan el programa de Windows.');
                 }
                 self::start_admin_session($a);
@@ -473,11 +489,11 @@ CSS;
                     throw new ApiError('Las dos contraseñas no coinciden');
                 }
                 Auth::complete_reset($token, $p1);
-                $msg = $agent['role'] === 'admin'
+                $msg = Roles::can($agent, 'admin_panel')
                     ? 'Contraseña cambiada. Ya puedes iniciar sesión.'
                     : 'Contraseña cambiada. Ya puedes entrar en el programa Bezares Chat de Windows.';
                 self::auth_page('Contraseña cambiada', self::alert($msg)
-                    . ($agent['role'] === 'admin' ? self::nav_button('Iniciar sesión', '/admin/login', 'btn btn-primary btn-block') : ''), 'Por seguridad se han cerrado todas tus sesiones abiertas');
+                    . (Roles::can($agent, 'admin_panel') ? self::nav_button('Iniciar sesión', '/admin/login', 'btn btn-primary btn-block') : ''), 'Por seguridad se han cerrado todas tus sesiones abiertas');
             } catch (ApiError $e) {
                 $err = $e->getMessage();
             }
@@ -492,9 +508,129 @@ CSS;
 
     /* ================================================================ configuración */
 
+    /** Botones de pestaña de Configuración; $active es el índice del grupo o 'roles'. */
+    private static function settings_tabs($schema, $active)
+    {
+        $tabs = '<form method="get" action="/admin/settings" class="tabs" role="tablist">';
+        foreach ($schema as $i => $g) {
+            $on = $active === $i;
+            $tabs .= '<button type="submit" name="tab" value="' . $i . '" class="btn' . ($on ? ' on' : '') . '" role="tab" aria-selected="' . ($on ? 'true' : 'false') . '">' . self::h($g['group']) . '</button>';
+        }
+        $on = $active === 'roles';
+        return $tabs . '<button type="submit" name="tab" value="roles" class="btn' . ($on ? ' on' : '') . '" role="tab" aria-selected="' . ($on ? 'true' : 'false') . '">🛡 Roles</button></form>';
+    }
+
+    /** Acciones de la pestaña Roles (guardar permisos, crear y borrar roles). */
+    private static function roles_post($me)
+    {
+        self::check_csrf();
+        $action = (string) ($_POST['action'] ?? '');
+        try {
+            if ($action === 'roles_save') {
+                $names = (array) ($_POST['names'] ?? array());
+                $perms = (array) ($_POST['perms'] ?? array());
+                foreach (Roles::all() as $key => $r) {
+                    Roles::save_perms($key, array_keys((array) ($perms[$key] ?? array())));
+                    if (isset($names[$key]) && trim((string) $names[$key]) !== $r['name']) {
+                        Roles::rename($key, (string) $names[$key]);
+                    }
+                }
+                // Nadie puede quitarse a sí mismo el acceso al panel.
+                if (!in_array('admin_panel', Roles::perms($me['role']), true)) {
+                    $p = Roles::perms($me['role']);
+                    $p[] = 'admin_panel';
+                    Roles::save_perms($me['role'], $p);
+                    self::flash('Permisos guardados. Se ha mantenido «Panel de administración» en tu propio rol para que no pierdas el acceso.');
+                } else {
+                    self::flash('Permisos de los roles guardados. Se aplican al momento en los programas de Windows.');
+                }
+            } elseif ($action === 'role_create') {
+                $from = (string) ($_POST['copy_from'] ?? '');
+                $key = Roles::create((string) ($_POST['role_name'] ?? ''), Roles::exists($from) ? Roles::perms($from) : array());
+                self::flash('Rol «' . Roles::name($key) . '» creado. Ajusta sus permisos en la tabla y asígnalo en Usuarios.');
+            } elseif ($action === 'role_delete') {
+                $key = (string) ($_POST['role_key'] ?? '');
+                if (empty($_POST['confirm_delete'])) {
+                    throw new ApiError('Marca «confirmar» para borrar el rol.');
+                }
+                $name = Roles::name($key);
+                Roles::delete($key);
+                self::flash('Rol «' . $name . '» borrado.');
+            }
+        } catch (ApiError $e) {
+            self::flash($e->getMessage(), true);
+        }
+        self::redirect('/admin/settings?tab=roles');
+    }
+
+    /** Pestaña Roles: tabla de permisos por rol, crear y borrar roles. */
+    private static function roles_tab($schema, $me)
+    {
+        $roles = Roles::all();
+        $counts = array();
+        foreach (DB::rows('SELECT role, COUNT(*) n FROM agents GROUP BY role') as $r) {
+            $counts[$r['role']] = (int) $r['n'];
+        }
+        $head = '<tr><th>Permiso</th>';
+        foreach ($roles as $key => $r) {
+            $head .= '<th class="role-col"><input type="text" name="names[' . self::h($key) . ']" value="' . self::h($r['name']) . '" maxlength="60" aria-label="Nombre del rol">'
+                . '<small>' . ($counts[$key] ?? 0) . ' usuario(s)' . ($r['builtin'] ? ' · predefinido' : '') . '</small></th>';
+        }
+        $head .= '</tr>';
+        $rows = '';
+        foreach (Roles::PERMS as $perm => $info) {
+            $rows .= '<tr><td><b>' . self::h($info[0]) . '</b><br><small>' . self::h($info[1]) . '</small></td>';
+            foreach ($roles as $key => $r) {
+                $checked = in_array($perm, $r['perms'], true);
+                $locked = $key === 'admin' && $perm === 'admin_panel';
+                $rows .= '<td class="role-col"><input type="checkbox" class="perm" name="perms[' . self::h($key) . '][' . $perm . ']" value="1"'
+                    . ($checked ? ' checked' : '') . ($locked ? ' checked disabled title="El Administrador siempre conserva el acceso al panel"' : '')
+                    . ' aria-label="' . self::h($info[0] . ' — ' . $r['name']) . '">'
+                    . ($locked ? '<input type="hidden" name="perms[admin][admin_panel]" value="1">' : '') . '</td>';
+            }
+            $rows .= '</tr>';
+        }
+        $matrix = '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="roles_save">'
+            . '<h2>Permisos por rol</h2><p class="muted">Marca lo que puede hacer cada rol. Los cambios se aplican al momento: los programas de Windows muestran u ocultan los botones según el rol de cada usuario.</p>'
+            . '<div class="table-wrap"><table class="roles">' . $head . $rows . '</table></div>'
+            . '<div class="savebar"><button type="reset" class="btn btn-secondary">Deshacer cambios</button><button class="btn btn-primary">💾 Guardar permisos</button></div></form>';
+
+        $copy = '';
+        foreach ($roles as $key => $r) {
+            $copy .= '<option value="' . self::h($key) . '">' . self::h($r['name']) . '</option>';
+        }
+        $create = '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="role_create">'
+            . '<h2>➕ Nuevo rol</h2><div class="filters">'
+            . '<div class="field" style="flex:1;min-width:200px"><label for="role_name">Nombre</label><input id="role_name" type="text" name="role_name" maxlength="60" required placeholder="Ej.: Soporte técnico"></div>'
+            . '<div class="field"><label for="copy_from">Copiar permisos de</label><select id="copy_from" name="copy_from"><option value="">(ninguno)</option>' . $copy . '</select></div>'
+            . '<button class="btn btn-primary">Crear rol</button></div></form>';
+
+        $del = '';
+        foreach ($roles as $key => $r) {
+            if ($r['builtin']) {
+                continue;
+            }
+            $n = $counts[$key] ?? 0;
+            $del .= '<form method="post" class="del-row">' . self::csrf_field() . '<input type="hidden" name="action" value="role_delete"><input type="hidden" name="role_key" value="' . self::h($key) . '">'
+                . '<span><b>' . self::h($r['name']) . '</b> <small>(' . $n . ' usuario(s))</small></span>'
+                . ($n ? '<small class="muted">Cámbiales el rol en Usuarios para poder borrarlo.</small>'
+                      : '<label class="check"><input type="checkbox" name="confirm_delete" value="1" required> confirmar</label><button class="btn btn-danger btn-sm">🗑 Borrar</button>')
+                . '</form>';
+        }
+        $delete = $del ? '<div class="card"><h2>Borrar roles personalizados</h2><p class="muted">Los roles predefinidos (Administrador, Recepcionista, Comercial) no se pueden borrar, pero sí cambiar sus permisos.</p>' . $del . '</div>' : '';
+
+        self::layout('Configuración', 'Roles y permisos del equipo', self::settings_tabs($schema, 'roles') . $matrix . $create . $delete, $me);
+    }
+
     private static function settings($method, $me)
     {
         $schema = Settings::schema();
+        if ($method === 'POST' && in_array($_POST['action'] ?? '', array('roles_save', 'role_create', 'role_delete'), true)) {
+            self::roles_post($me);
+        }
+        if ($method === 'GET' && ($_GET['tab'] ?? '') === 'roles') {
+            self::roles_tab($schema, $me);
+        }
         if ($method === 'POST' && ($_POST['action'] ?? '') === 'testmail') {
             // Diagnóstico: envía un correo de prueba y muestra el error exacto del servidor de correo si falla.
             self::check_csrf();
@@ -540,15 +676,14 @@ CSS;
         }
         $tab = isset($_GET['tab']) ? max(0, min(count($schema) - 1, (int) $_GET['tab'])) : 0;
 
-        $tabs = '<form method="get" class="tabs" role="tablist">';
-        foreach ($schema as $i => $g) {
-            $tabs .= '<button type="submit" name="tab" value="' . $i . '" class="btn' . ($i === $tab ? ' on' : '') . '" role="tab" aria-selected="' . ($i === $tab ? 'true' : 'false') . '">' . self::h($g['group']) . '</button>';
-        }
-        $tabs .= '</form>';
+        $tabs = self::settings_tabs($schema, $tab);
 
         $fields = '';
         foreach ($schema[$tab]['fields'] as $f) {
             $fields .= self::field($f, Settings::get($f['k']));
+        }
+        if ($schema[$tab]['group'] === 'WhatsApp y Facebook') {
+            $fields = self::meta_guide() . $fields;
         }
         if ($schema[$tab]['group'] === 'Horario laboral') {
             $fields = '<div class="info-box">Zona horaria: <b>' . self::h(cfg('timezone')) . '</b> · Ahora mismo: <b>' . (Hours::is_open() ? 'DENTRO de horario' : 'FUERA de horario') . '</b></div>' . $fields;
@@ -556,15 +691,58 @@ CSS;
         $html = $tabs . '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="tab" value="' . $tab . '">'
             . '<h2>' . self::h($schema[$tab]['group']) . '</h2>' . $fields
             . '<div class="savebar">' . '<button type="reset" class="btn btn-secondary">Deshacer cambios</button><button type="submit" class="btn btn-primary">💾 Guardar</button></div></form>';
-        // Diagnóstico del correo (recuperación de contraseñas y envío de conversaciones).
+        // Diagnóstico del correo (recuperación de contraseñas y envío de conversaciones): solo en la pestaña General.
         $from = (string) cfg('mail_from', '');
-        $html .= '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="testmail"><input type="hidden" name="tab" value="' . $tab . '">'
+        if ($tab === 0) $html .= '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="testmail"><input type="hidden" name="tab" value="' . $tab . '">'
             . '<h2>✉ Probar el envío de correo</h2>'
             . '<div class="info-box">Remitente: <b>' . self::h($from ?: '(sin configurar)') . '</b> · Envío: <b>' . self::h(Mailer::transport()) . '</b><br>'
             . 'Se configura en <code>config.php</code> (mail_from y smtp_*). Si el remitente es de un dominio con Office 365 (como @bezares.com), usa el SMTP de Office 365 (<code>smtp.office365.com</code>, puerto 587, tls) con un buzón real: si no, SPF/DMARC hará que los correos acaben en cuarentena.</div>'
             . '<div class="filters"><div class="field" style="flex:1;min-width:240px"><label for="test_to">Enviar una prueba a</label><input id="test_to" type="email" name="test_to" required value="' . self::h($me['email']) . '"></div>'
             . '<button class="btn btn-secondary">Enviar prueba</button></div></form>';
         self::layout('Configuración', 'Mensajes automáticos, horario, traducción y canales de WhatsApp/Facebook', $html, $me);
+    }
+
+    /** Guía paso a paso para conectar WhatsApp Cloud API y Facebook Messenger (Meta). */
+    private static function meta_guide()
+    {
+        $base = rtrim((string) cfg('base_url'), '/');
+        $code = function ($s) { return '<code class="copy">' . self::h($s) . '</code>'; };
+        $wa = $code($base . '/api/webhook/whatsapp');
+        $fb = $code($base . '/api/webhook/facebook');
+        $vt = $code((string) Settings::get('meta_verify_token'));
+        return '<div class="guide"><p class="muted">Guía de conexión. Los nombres de los menús de Meta pueden variar ligeramente según el idioma y la versión. Necesitas ser administrador de la cuenta comercial (Business Manager) de Bezares.</p>'
+            . '<details open><summary>1. Crear la app de Meta (una sola vez)</summary><ol>'
+            . '<li>Entra en <b>developers.facebook.com</b> → <b>Mis apps</b> → <b>Crear app</b>.</li>'
+            . '<li>Elige el tipo <b>Empresa</b> (Business) y vincúlala a la cuenta comercial de Bezares.</li>'
+            . '<li>Dentro de la app, en <b>Añadir productos</b>, añade <b>WhatsApp</b> y/o <b>Messenger</b>.</li>'
+            . '</ol></details>'
+            . '<details><summary>2. App Secret (obligatorio)</summary><ol>'
+            . '<li>En la app: <b>Configuración de la app</b> → <b>Básica</b>.</li>'
+            . '<li>Junto a <b>Clave secreta de la app</b> pulsa <b>Mostrar</b> (te pedirá tu contraseña de Facebook).</li>'
+            . '<li>Cópiala en el campo <b>App Secret</b> de abajo. Sirve para comprobar que cada mensaje entrante viene realmente de Meta.</li>'
+            . '</ol></details>'
+            . '<details><summary>3. WhatsApp: Phone number ID y token permanente</summary><ol>'
+            . '<li>En la app: <b>WhatsApp</b> → <b>Configuración de la API</b>. Añade y verifica el número de teléfono de empresa (no puede estar en uso en la app de WhatsApp normal).</li>'
+            . '<li>Copia el <b>Identificador del número de teléfono</b> (Phone number ID) en el campo <b>WhatsApp Phone number ID</b>.</li>'
+            . '<li>El token temporal que aparece ahí caduca en 24 h: <b>no lo uses</b>. Para el permanente ve a <b>business.facebook.com</b> → <b>Configuración del negocio</b> → <b>Usuarios</b> → <b>Usuarios del sistema</b> → <b>Añadir</b> (nombre p. ej. «bezares-chat», rol <b>Administrador</b>).</li>'
+            . '<li>Con ese usuario seleccionado: <b>Asignar activos</b> → la <b>app</b> (control total) y la <b>cuenta de WhatsApp</b> (control total).</li>'
+            . '<li><b>Generar nuevo token</b> → elige la app → caducidad <b>Nunca</b> → permisos <b>whatsapp_business_messaging</b> y <b>whatsapp_business_management</b> → copia el token en <b>WhatsApp token permanente</b> (solo se muestra una vez).</li>'
+            . '<li>Webhook: en la app, <b>WhatsApp</b> → <b>Configuración</b> → <b>Webhook</b> → <b>Editar</b>. URL de devolución: ' . $wa . ' · Token de verificación: ' . $vt . ' → <b>Verificar y guardar</b>. Después, en <b>Campos del webhook</b>, suscribe <b>messages</b>.</li>'
+            . '<li>Marca abajo <b>WhatsApp activado</b> y guarda. Para producción, Meta exige verificar la empresa y añadir un método de pago en WhatsApp Manager.</li>'
+            . '</ol></details>'
+            . '<details><summary>4. Facebook Messenger: Page access token</summary><ol>'
+            . '<li>Asigna también la <b>página de Facebook de Bezares</b> al usuario del sistema (<b>Asignar activos</b> → Páginas → control total).</li>'
+            . '<li>En el usuario del sistema, <b>Generar nuevo token</b> → la app → caducidad <b>Nunca</b> → permisos <b>pages_messaging</b>, <b>pages_manage_metadata</b> y <b>pages_show_list</b>. Un token generado así para la página no caduca. (Alternativa: en la app, <b>Messenger</b> → <b>Configuración de la API de Messenger</b> → conectar la página → <b>Generar token</b>.)</li>'
+            . '<li>Copia el token en <b>Page access token</b>.</li>'
+            . '<li>Webhook: <b>Messenger</b> → <b>Configuración</b> → <b>Webhooks</b>. URL de devolución: ' . $fb . ' · Token de verificación: ' . $vt . '. Luego, en la página conectada, suscribe el campo <b>messages</b>.</li>'
+            . '<li>Para hablar con cualquier persona (no solo con los evaluadores de la app), la app debe estar en modo <b>Activo</b> y tener aprobado el permiso <b>pages_messaging</b> en <b>Revisión de la app</b>.</li>'
+            . '<li>Marca abajo <b>Facebook Messenger activado</b> y guarda.</li>'
+            . '</ol></details>'
+            . '<details><summary>5. Comprobar que funciona</summary><ol>'
+            . '<li>Escribe al número de WhatsApp o a la página de Facebook desde un móvil: el chat debe aparecer en el programa de Windows y sonar en recepción.</li>'
+            . '<li>Si no llega: revisa que el <b>App Secret</b> es correcto (si no, los mensajes se rechazan) y el registro de errores del servidor.</li>'
+            . '<li>Recuerda la norma de Meta: solo se puede escribir libremente durante <b>24 h</b> desde el último mensaje del cliente.</li>'
+            . '</ol></details></div>';
     }
 
     private static function field($f, $v)
@@ -627,8 +805,8 @@ CSS;
                     self::redirect('/admin/users');
                 }
                 $d = array('name' => $_POST['name'] ?? '', 'email' => $_POST['email'] ?? '', 'role' => $_POST['role'] ?? 'sales', 'active' => !empty($_POST['active']), 'password' => $_POST['password'] ?? '');
-                if ($id === (int) $me['id'] && ($d['role'] !== 'admin' || !$d['active'])) {
-                    throw new ApiError('No puedes quitarte el rol de administrador ni desactivarte');
+                if ($id === (int) $me['id'] && (!in_array('admin_panel', Roles::perms($d['role']), true) || !$d['active'])) {
+                    throw new ApiError('No puedes quitarte el acceso al panel (elige un rol con «Panel de administración») ni desactivarte');
                 }
                 Auth::save($d, $id);
                 self::flash($id ? 'Usuario guardado' : 'Usuario creado');
@@ -644,7 +822,7 @@ CSS;
         foreach (Auth::agents() as $a) {
             $online = (now_ms() - (int) $a['last_seen']) < 60000;
             $rows .= '<tr><td><span class="dot' . ($online ? ' on' : '') . '" title="' . ($online ? 'Conectado' : 'Desconectado') . '"></span><b>' . self::h($a['name']) . '</b><br><small>' . self::h($a['email']) . '</small></td>'
-                . '<td><span class="badge b-' . self::h($a['role']) . '">' . self::h(Auth::ROLES[$a['role']] ?? $a['role']) . '</span></td>'
+                . '<td><span class="badge b-' . (in_array($a['role'], array('admin', 'receptionist', 'sales'), true) ? self::h($a['role']) : 'custom') . '">' . self::h(Roles::name($a['role'])) . '</span></td>'
                 . '<td><span class="badge ' . ((int) $a['active'] ? 'b-on">Activo' : 'b-off">Desactivado') . '</span></td>'
                 . '<td class="actions">' . self::nav_button('✏️ Editar', '/admin/users', 'btn btn-secondary btn-sm', array('edit' => (int) $a['id'])) . '</td></tr>';
         }
@@ -652,14 +830,14 @@ CSS;
 
         $role = $edit ? $edit['role'] : 'sales';
         $opts = '';
-        foreach (Auth::ROLES as $k => $l) {
-            $opts .= '<option value="' . $k . '" ' . ($role === $k ? 'selected' : '') . '>' . $l . '</option>';
+        foreach (Roles::all() as $k => $rr) {
+            $opts .= '<option value="' . self::h($k) . '" ' . ($role === $k ? 'selected' : '') . '>' . self::h($rr['name']) . '</option>';
         }
         $form = '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="id" value="' . ($edit ? (int) $edit['id'] : 0) . '">'
             . '<h2>' . ($edit ? 'Editar usuario' : 'Nuevo usuario') . '</h2>'
             . '<div class="field"><label for="u_name">Nombre</label><input id="u_name" type="text" name="name" required value="' . self::h($edit ? $edit['name'] : '') . '"></div>'
             . '<div class="field"><label for="u_email">Correo (usuario de acceso)</label><input id="u_email" type="email" name="email" required autocomplete="off" value="' . self::h($edit ? $edit['email'] : '') . '"></div>'
-            . '<div class="field"><label for="u_role">Rol</label><select id="u_role" name="role">' . $opts . '</select><small>Recepcionista: recibe todos los chats y transfiere. Comercial: solo ve los chats que le transfieren. Administrador: además entra en este panel.</small></div>'
+            . '<div class="field"><label for="u_role">Rol</label><select id="u_role" name="role">' . $opts . '</select><small>Lo que puede hacer cada rol se configura en Configuración → Roles.</small></div>'
             . '<div class="field"><label for="pw_password">Contraseña</label>' . self::password_input('password', 'minlength="10" autocomplete="new-password" ' . ($edit ? 'placeholder="Déjala vacía para no cambiarla"' : 'required')) . '<small>Mínimo 10 caracteres, con letras y números. El usuario también puede recuperarla por correo.</small></div>'
             . '<label class="switch"><input type="checkbox" role="switch" name="active" value="1" ' . (!$edit || (int) $edit['active'] ? 'checked' : '') . '><span><b>Usuario activo</b><small>Si lo desactivas se cierran sus sesiones.</small></span></label>'
             . '<div class="savebar"><button type="submit" class="btn btn-primary">' . ($edit ? '💾 Guardar' : '➕ Crear usuario') . '</button></div>'
