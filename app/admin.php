@@ -738,7 +738,7 @@ CSS;
             $lo .= '<option value="' . $k . '">' . $l . '</option>';
         }
         $html .= '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="test_start">'
-            . '<h2>💬 Simular un visitante nuevo (web)</h2>'
+            . '<h2>💬 Simular un visitante nuevo (web)</h2>' . self::ai_warning()
             . '<div class="field"><label for="t_text">Primer mensaje del visitante</label><textarea id="t_text" name="text" required placeholder="Ej.: Hola, busco una toma de fuerza para un camión Volvo"></textarea><small>Escríbelo en el idioma elegido para probar también la traducción automática.</small></div>'
             . '<div class="filters"><div class="field"><label for="t_lang">Idioma del navegador del visitante</label><select id="t_lang" name="lang">' . $lo . '</select></div><button class="btn btn-primary">Iniciar chat de prueba</button></div></form>';
 
@@ -942,6 +942,19 @@ CSS;
             }
             self::redirect('/admin/settings?tab=' . max(0, (int) ($_POST['tab'] ?? 0)));
         }
+        if ($method === 'POST' && ($_POST['action'] ?? '') === 'testai') {
+            // Diagnóstico: traduce una frase al francés y muestra el error exacto de OpenAI si falla.
+            self::check_csrf();
+            if (!rate_limit('testai:' . $me['id'], 20, 3600)) {
+                self::flash('Demasiadas pruebas en la última hora.', true);
+            } else {
+                $tr = AI::translate('Hola, ¿en qué podemos ayudarte?', 'fr');
+                self::flash($tr
+                    ? 'La traducción funciona. «Hola, ¿en qué podemos ayudarte?» → «' . $tr . '»'
+                    : 'ERROR de traducción: ' . (AI::$lastError ?: 'sin detalle'), !$tr);
+            }
+            self::redirect('/admin/settings?tab=' . max(0, (int) ($_POST['tab'] ?? 0)));
+        }
         if ($method === 'POST') {
             self::check_csrf();
             $tab = max(0, min(count($schema) - 1, (int) ($_POST['tab'] ?? 0)));
@@ -992,7 +1005,53 @@ CSS;
             . 'Se configura en <code>config.php</code> (mail_from y smtp_*). Si el remitente es de un dominio con Office 365 (como @bezares.com), usa el SMTP de Office 365 (<code>smtp.office365.com</code>, puerto 587, tls) con un buzón real: si no, SPF/DMARC hará que los correos acaben en cuarentena.</div>'
             . '<div class="filters"><div class="field" style="flex:1;min-width:240px"><label for="test_to">Enviar una prueba a</label><input id="test_to" type="email" name="test_to" required value="' . self::h($me['email']) . '"></div>'
             . '<button class="btn btn-secondary">Enviar prueba</button></div></form>';
+        if ($schema[$tab]['group'] === 'Traducción (ChatGPT)') {
+            $html .= self::ai_card($tab);
+        }
         self::layout('Configuración', 'Mensajes automáticos, horario, traducción y canales de WhatsApp/Facebook', $html, $me);
+    }
+
+    /** Aviso breve si la traducción no funciona (se muestra en la pestaña Pruebas). */
+    private static function ai_warning()
+    {
+        $tab = 0;
+        foreach (Settings::schema() as $i => $g) {
+            if ($g['group'] === 'Traducción (ChatGPT)') {
+                $tab = $i;
+            }
+        }
+        $st = AI::status();
+        $reason = AI::disabled_reason();
+        if (!$reason && !empty($st['error']['t']) && (int) $st['error']['t'] >= (int) $st['ok']) {
+            $reason = 'La última llamada a OpenAI falló: ' . $st['error']['msg'];
+        }
+        return $reason
+            ? '<div class="info-box" style="border-color:#c62828">⚠ <b>La traducción no está funcionando.</b> ' . self::h($reason) . ' '
+                . '<a class="btn btn-secondary btn-sm" href="/admin/settings?tab=' . (int) $tab . '">Ver Configuración → Traducción</a></div>'
+            : '';
+    }
+
+    /** Estado de la traducción (último error / último éxito) y botón de prueba. */
+    private static function ai_card($tab)
+    {
+        $st = AI::status();
+        $fmt = function ($t) {
+            return (new DateTimeImmutable('@' . (int) $t))->setTimezone(tz())->format('d/m/Y H:i');
+        };
+        $reason = AI::disabled_reason();
+        if ($reason) {
+            $state = '<b style="color:#c62828">⚠ ' . self::h($reason) . '</b> Los mensajes no se traducen y el bot responde en inglés a los idiomas que no sean español ni inglés.';
+        } elseif (!empty($st['error']['t']) && (int) $st['error']['t'] >= (int) $st['ok']) {
+            $state = '<b style="color:#c62828">⚠ La última llamada a OpenAI falló</b> (' . $fmt($st['error']['t']) . '): ' . self::h($st['error']['msg']);
+        } elseif ($st['ok']) {
+            $state = '<b style="color:#2e7d32">✔ Funcionando</b> · última traducción correcta: ' . $fmt($st['ok']);
+        } else {
+            $state = 'Activada, todavía sin traducciones registradas. Pulsa «Probar traducción».';
+        }
+        return '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="testai"><input type="hidden" name="tab" value="' . (int) $tab . '">'
+            . '<h2>🌐 Probar la traducción</h2><div class="info-box">' . $state . '<br>Modelo: <b>' . self::h(Settings::get('openai_model') ?: 'gpt-4o-mini') . '</b>. '
+            . 'Errores habituales: 401 = API key incorrecta o revocada · 429 = sin saldo o límite de la cuenta de OpenAI · 404 = el modelo no existe en tu cuenta.</div>'
+            . '<div class="filters"><button class="btn btn-secondary">Probar traducción</button></div></form>';
     }
 
     /** Guía paso a paso para conectar WhatsApp Cloud API y Facebook Messenger (Meta). */

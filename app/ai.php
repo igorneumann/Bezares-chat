@@ -5,14 +5,45 @@ class AI
     /** Idiomas que el equipo lee directamente. */
     const NATIVE = array('es', 'en');
 
+    /** Último error de la llamada en curso (para el diagnóstico del panel). */
+    public static $lastError = null;
+
     public static function enabled()
     {
-        return (int) Settings::get('translate_enabled') === 1 && Settings::get('openai_key') !== '';
+        return (int) Settings::get('translate_enabled') === 1 && (string) Settings::get('openai_key') !== '';
+    }
+
+    /** Por qué no se traduce, en lenguaje claro; null si está activada y configurada. */
+    public static function disabled_reason()
+    {
+        if ((int) Settings::get('translate_enabled') !== 1) {
+            return 'La traducción automática está desactivada.';
+        }
+        if ((string) Settings::get('openai_key') === '') {
+            return 'Falta la API key de OpenAI.';
+        }
+        return null;
+    }
+
+    /** Último fallo y último éxito guardados (se muestran en Configuración → Traducción). */
+    public static function status()
+    {
+        return array('error' => cache_get('ai:last_error'), 'ok' => cache_get('ai:last_ok'));
+    }
+
+    private static function fail($msg)
+    {
+        self::$lastError = $msg;
+        log_error('OpenAI ' . $msg);
+        cache_set('ai:last_error', array('t' => time(), 'msg' => mb_substr($msg, 0, 400)), 30 * 86400);
+        return null;
     }
 
     private static function chat($system, $user)
     {
+        self::$lastError = null;
         if (!self::enabled()) {
+            self::$lastError = self::disabled_reason();
             return null;
         }
         $r = Http::json('POST', 'https://api.openai.com/v1/chat/completions', array(
@@ -25,11 +56,15 @@ class AI
             ),
         ), array('Authorization' => 'Bearer ' . Settings::get('openai_key')), 20);
         if ($r['status'] !== 200 || empty($r['json']['choices'][0]['message']['content'])) {
-            log_error('OpenAI ' . $r['status'] . ' ' . ($r['error'] ?: substr($r['body'], 0, 300)));
-            return null;
+            $detail = $r['error'] ?: (isset($r['json']['error']['message']) ? $r['json']['error']['message'] : substr($r['body'], 0, 300));
+            return self::fail('HTTP ' . $r['status'] . ': ' . $detail);
         }
         $d = json_decode($r['json']['choices'][0]['message']['content'], true);
-        return is_array($d) ? $d : null;
+        if (!is_array($d)) {
+            return self::fail('respuesta no válida del modelo');
+        }
+        cache_set('ai:last_ok', time(), 30 * 86400);
+        return $d;
     }
 
     private static function lang_name($c)
