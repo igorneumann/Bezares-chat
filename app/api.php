@@ -87,6 +87,7 @@ class Api
                 array('POST', '#^/conversations/(\d+)/accept$#', 'conv_accept'),
                 array('POST', '#^/conversations/(\d+)/transfer$#', 'conv_transfer'),
                 array('POST', '#^/conversations/(\d+)/email$#', 'conv_email'),
+                array('DELETE', '#^/conversations/(\d+)$#', 'conv_delete'),
                 array('GET', '#^/templates$#', 'templates_list'),
                 array('POST', '#^/templates$#', 'template_save'),
                 array('POST', '#^/templates/(\d+)$#', 'template_save'),
@@ -195,7 +196,8 @@ class Api
     {
         $c = Core::find('web', self::visitor_token());
         if (!$c) {
-            return array('messages' => array(), 'open' => Hours::is_open());
+            // exists=false: el widget empieza de cero si su conversación se borró.
+            return array('messages' => array(), 'open' => Hours::is_open(), 'exists' => false);
         }
         $rows = DB::rows("SELECT * FROM messages WHERE conversation_id = ? AND id > ? AND direction <> 'system' ORDER BY id LIMIT 200", array($c['id'], max(0, (int) self::param('after', 0))));
         return array('messages' => array_map(function ($m) { return Core::msg_out($m, true); }, $rows), 'open' => Hours::is_open());
@@ -375,6 +377,25 @@ class Api
         }
         Core::transfer($c, $a, $to, (string) self::param('note'));
         return array('conversation' => Core::conv_out(Core::conv($c['id'])));
+    }
+
+    /* ---------------------------------------------------------- borrar una conversación */
+
+    /** Borra definitivamente la conversación, sus mensajes y sus adjuntos (solo recepción y administración). */
+    private static function conv_delete($id)
+    {
+        list($a, $c) = self::conv_for_agent($id);
+        if (!in_array($a['role'], array('receptionist', 'admin'), true)) {
+            throw new ApiError('Solo recepción y administración pueden borrar conversaciones', 403);
+        }
+        foreach (DB::col("SELECT media_url FROM messages WHERE conversation_id = ? AND media_url <> ''", array($c['id'])) as $u) {
+            Media::delete_stored($u);
+        }
+        DB::delete('messages', array('conversation_id' => $c['id']));
+        DB::delete('conversations', array('id' => $c['id']));
+        // Registro mínimo para auditoría (sin el contenido del chat).
+        log_error('Conversación ' . (int) $c['id'] . ' (' . $c['channel'] . ') borrada por ' . $a['name'] . ' (agente ' . (int) $a['id'] . ')');
+        return array('ok' => true);
     }
 
     /* ---------------------------------------------------------- enviar la conversación por correo */

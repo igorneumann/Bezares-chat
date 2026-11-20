@@ -121,5 +121,8 @@ storage/            → adjuntos privados y temporales (fuera de la web; se crea
 | GET | `/api/sync?since=` | Sincronización incremental (cada 2 s) |
 | GET/POST | `/api/conversations/{id}/messages` | Leer / responder (texto o archivo) |
 | POST | `/api/conversations/{id}/accept`, `/transfer` | Atender / transferir (solo recepción y admin) |
+| POST | `/api/conversations/{id}/email` | Enviar la transcripción por correo |
+| DELETE | `/api/conversations/{id}` | Borrar la conversación (recepción y administración) |
+| GET/POST/DELETE | `/api/templates`, `/api/templates/{id}` | Plantillas de respuesta (solo recepción) |
 
 Seguridad: ver [SECURITY.md](SECURITY.md).

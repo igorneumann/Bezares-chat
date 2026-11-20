@@ -146,7 +146,7 @@
     if (body && isForm) opts.body = body;
     else if (body) { opts.body = JSON.stringify(body); opts.headers['Content-Type'] = 'application/json'; }
     return fetch(url, opts).then(function (r) {
-      return r.json().then(function (j) { if (!r.ok) throw new Error(j && j.message || ('HTTP ' + r.status)); return j; });
+      return r.json().then(function (j) { if (!r.ok) { var err = new Error(j && j.message || ('HTTP ' + r.status)); err.status = r.status; throw err; } return j; });
     });
   }
 
@@ -206,6 +206,7 @@
     api('GET', '/visitor/messages?token=' + encodeURIComponent(token) + '&after=' + lastId)
       .then(function (r) {
         businessOpen = r.open; updateSub();
+        if (r.exists === false) { resetConv(); return; } // el equipo borró la conversación
         addMessages(r.messages || []);
       })
       .catch(function () {})
@@ -296,6 +297,40 @@
   function usePow() { var p = powPromise; powPromise = null; return p; } // cada reto vale una vez
 
   /* ---------- Envío ---------- */
+  // La conversación ya no existe en el servidor (borrada por el equipo): se empieza de cero en el widget.
+  function resetConv() {
+    hasConv = false;
+    store('bzc_has_conv', '0');
+    store('bzc_last_seen', '0');
+    lastId = 0; seen = {}; unread = 0; lastSeenId = 0;
+    msgs.innerHTML = '';
+    updateBadge();
+    if (isOpen) { renderWelcome(); getPow().catch(function () {}); }
+  }
+  // Envía (texto o archivo). Si el servidor exige la prueba anti-bot porque la conversación se borró,
+  // reinicia el widget y reintenta una vez como chat nuevo.
+  function postWithPow(path, fields, file, name, retried) {
+    var copy = {};
+    Object.keys(fields).forEach(function (k) { copy[k] = fields[k]; });
+    return withPow(copy).then(function (f) {
+      if (!file) return api('POST', path, f);
+      var fd = new FormData();
+      Object.keys(f).forEach(function (k) { fd.append(k, f[k]); });
+      fd.append('file', file, name);
+      return api('POST', path, fd, true);
+    }).catch(function (ex) {
+      if (ex.status === 403 && hasConv && !retried && /anti-spam/i.test(ex.message || '')) {
+        resetConv();
+        return postWithPow(path, fields, file, name, true);
+      }
+      throw ex;
+    });
+  }
+  function visitorFields(extra) {
+    var f = { token: token, lang: browserLang, locale: (navigator.languages || [navigator.language || '']).join(','), tz: tzName(), page: location.href };
+    if (extra) Object.keys(extra).forEach(function (k) { f[k] = extra[k]; });
+    return f;
+  }
   function afterSend() {
     if (!hasConv) { hasConv = true; store('bzc_has_conv', '1'); }
     touch();
@@ -320,8 +355,7 @@
     if (!text || sending) return;
     sending = true;
     root.classList.add('bzc-busy');
-    withPow({ token: token, text: text, lang: browserLang, locale: (navigator.languages || [navigator.language || '']).join(','), tz: tzName(), page: location.href })
-      .then(function (body) { return api('POST', '/visitor/messages', body); })
+    postWithPow('/visitor/messages', visitorFields({ text: text }))
       .then(function () { input.value = ''; autosize(); afterSend(); })
       .catch(function (ex) { showErr(ex.message || T.error); })
       .then(function () { sending = false; root.classList.remove('bzc-busy'); });
@@ -335,13 +369,7 @@
   function upload(blob, name) {
     if (blob.size > (C.maxUpload || 16) * 1048576) { showErr(T.tooBig); return; }
     root.classList.add('bzc-busy');
-    withPow({ token: token, lang: browserLang, locale: (navigator.languages || [navigator.language || '']).join(','), tz: tzName(), page: location.href })
-      .then(function (fields) {
-        var fd = new FormData();
-        Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });
-        fd.append('file', blob, name);
-        return api('POST', '/visitor/upload', fd, true);
-      })
+    postWithPow('/visitor/upload', visitorFields(), blob, name)
       .then(afterSend)
       .catch(function (ex) { showErr(ex.message || T.error); })
       .then(function () { root.classList.remove('bzc-busy'); });

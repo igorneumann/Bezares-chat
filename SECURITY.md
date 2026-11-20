@@ -83,4 +83,6 @@ Auditoría del código del 19/11/2026, sobre el servidor, el widget, el plugin y
 - **Envío de la conversación por correo**: solo a quien puede ver el chat, máximo 20 envíos por hora y agente, y queda registrado en la conversación («X envió la conversación por correo a Y»). Los enlaces a adjuntos del correo caducan a los 7 días.
 - **Migración de adjuntos antiguos**: la base de datos solo se actualiza si el archivo se movió de verdad (rename, o copia verificada por tamaño + borrado). Lo que falla se reintenta al día siguiente sin bloquear al resto, y `public/uploads` está bloqueada desde ya (los archivos se siguen sirviendo solo por `/media/` con firma).
 
+- **Borrado de conversaciones**: solo recepción y administración, y solo los chats que pueden ver. Borra mensajes y adjuntos del disco y deja en el log del servidor una línea de auditoría (id, canal y quién lo borró, sin el contenido).
+
 Otros cambios: el esquema de la base de datos se actualiza solo tras desplegar código nuevo (`schema_version`), y la tarea diaria limpia los límites caducados y los temporales huérfanos.
