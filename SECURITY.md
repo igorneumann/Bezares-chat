@@ -87,6 +87,6 @@ Auditoría del código del 19/11/2026, sobre el servidor, el widget, el plugin y
 
 - **Roles y permisos**: cada acción de la API comprueba en el servidor el permiso del rol (no basta con ocultar el botón en el cliente). El rol Administrador conserva siempre el acceso al panel y nadie puede quitarse a sí mismo ese permiso. Los nombres de rol se escapan al mostrarlos.
 
-- **Pestaña Pruebas**: solo para administradores del panel. Los chats de prueba están marcados (`is_test`) y la API del programa de Windows, los avisos, los recordatorios y las estadísticas los excluyen. El prefijo de sus identificadores está reservado: el widget público no puede usarlos.
+- **Pestaña Pruebas**: el modo de pruebas de WhatsApp/Messenger caduca solo (máx. 8 h), queda registrado en el log quién lo activa y desactiva, y los chats de cada remitente se separan en prueba y reales (nunca se mezclan). solo para administradores del panel. Los chats de prueba están marcados (`is_test`) y la API del programa de Windows, los avisos, los recordatorios y las estadísticas los excluyen. El prefijo de sus identificadores está reservado: el widget público no puede usarlos.
 
 Otros cambios: el esquema de la base de datos se actualiza solo tras desplegar código nuevo (`schema_version`), y la tarea diaria limpia los límites caducados y los temporales huérfanos.

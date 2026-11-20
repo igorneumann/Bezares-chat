@@ -186,6 +186,12 @@ class Admin
             case 'settings':
                 self::settings($method, $me);
                 break;
+            case 'test':
+                if ($method === 'POST') {
+                    self::test_post($me);
+                }
+                self::test_tab($me);
+                break;
             case 'users':
                 self::users($method, $me);
                 break;
@@ -291,6 +297,8 @@ input[type=color]{width:60px;height:40px;border:1px solid #d3d9e3;border-radius:
 .t-out{align-self:flex-end;background:#dcebfb;border-color:#c6dcf5}
 .t-bot{align-self:flex-end;background:#eef1f5;border-style:dashed}
 .t-system{align-self:center;background:#eef1f5;font-size:12px;color:var(--muted)}
+.test-banner{background:#fff4e5;border:1px solid #f5c27a;color:#7a4100;border-radius:10px;padding:10px 14px;margin-bottom:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.card.test-on{border-color:#f5c27a;background:#fffaf2}
 .guide{margin-bottom:20px}
 .guide details{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fafbfd}
 .guide summary{cursor:pointer;padding:11px 14px;font-weight:600}
@@ -364,7 +372,7 @@ CSS;
     private static function layout($title, $subtitle, $body, $me, $headActions = '')
     {
         $cur = trim(preg_replace('#^/admin#', '', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH)), '/');
-        $items = array('' => '📊  Estadísticas', 'settings' => '⚙️  Configuración', 'users' => '👥  Usuarios');
+        $items = array('' => '📊  Estadísticas', 'settings' => '⚙️  Configuración', 'users' => '👥  Usuarios', 'test' => '🧪  Pruebas');
         $nav = '';
         foreach ($items as $k => $l) {
             $nav .= self::nav_button($l, '/admin/' . $k, 'btn' . ($cur === $k ? ' on' : ''));
@@ -374,7 +382,7 @@ CSS;
             . '<div class="side-foot"><div class="who">' . self::h($me['name']) . '</div><div class="role">' . self::h(Roles::name($me['role'])) . '</div>'
             . '<form method="post" action="/admin/logout" class="inline">' . self::csrf_field() . '<button class="btn btn-sm">Cerrar sesión</button></form></div></aside>'
             . '<main class="main"><div class="page-head"><div><h1>' . self::h($title) . '</h1>' . ($subtitle ? '<p>' . self::h($subtitle) . '</p>' : '') . '</div>' . $headActions . '</div>'
-            . self::flash() . $body . '</main></div></body></html>';
+            . self::test_banner() . self::flash() . $body . '</main></div></body></html>';
         exit;
     }
 
@@ -523,7 +531,7 @@ CSS;
             $on = $active === $i;
             $tabs .= '<button type="submit" name="tab" value="' . $i . '" class="btn' . ($on ? ' on' : '') . '" role="tab" aria-selected="' . ($on ? 'true' : 'false') . '">' . self::h($g['group']) . '</button>';
         }
-        foreach (array('roles' => '🛡 Roles', 'test' => '🧪 Pruebas') as $k => $label) {
+        foreach (array('roles' => '🛡 Roles') as $k => $label) {
             $on = $active === $k;
             $tabs .= '<button type="submit" name="tab" value="' . $k . '" class="btn' . ($on ? ' on' : '') . '" role="tab" aria-selected="' . ($on ? 'true' : 'false') . '">' . $label . '</button>';
         }
@@ -571,6 +579,18 @@ CSS;
                 }
                 $_SESSION['test_as'] = (int) $a['id'];
                 self::flash('Ahora actúas como ' . $a['name'] . ' (' . Roles::name($a['role']) . ') en los chats de prueba.');
+            } elseif ($action === 'test_mode_on') {
+                $channels = array_keys((array) ($_POST['channels'] ?? array()));
+                if (!array_intersect($channels, array_keys(Core::TEST_CHANNELS))) {
+                    throw new ApiError('Marca al menos un canal para el modo de pruebas');
+                }
+                Core::set_test_mode($channels, (int) ($_POST['hours'] ?? 2), $me['name']);
+                log_error('Modo de pruebas ACTIVADO por ' . $me['name'] . ' para ' . implode(', ', $channels));
+                self::flash('Modo de pruebas activado: los mensajes de esos canales llegan solo a esta pestaña.');
+            } elseif ($action === 'test_mode_off') {
+                Core::set_test_mode(array(), 0, $me['name']);
+                log_error('Modo de pruebas desactivado por ' . $me['name']);
+                self::flash('Modo de pruebas desactivado: los mensajes vuelven a llegar al equipo.');
             } elseif ($action === 'test_clear') {
                 foreach (DB::col('SELECT id FROM conversations WHERE is_test = 1') as $id) {
                     self::delete_conv($id);
@@ -587,7 +607,7 @@ CSS;
                     $lang = lang_norm($_POST['lang'] ?? 'es') ?: 'es';
                     $ext = 'paneltest-' . random_token(10);
                     Core::incoming('web', $ext, array('lang' => $lang, 'page_url' => rtrim((string) cfg('base_url'), '/') . '/admin (prueba)', 'test' => 1), $text);
-                    $c = Core::find('web', $ext);
+                    $c = Core::find('web', $ext, 1);
                     $conv = $c ? (int) $c['id'] : 0;
                     self::flash('Chat de prueba creado. El bot ha respondido como lo haría con un visitante real.');
                 } elseif ($action === 'test_visitor') {
@@ -627,7 +647,53 @@ CSS;
         } catch (ApiError $e) {
             self::flash($e->getMessage(), true);
         }
-        self::redirect('/admin/settings?tab=test' . ($conv ? '&conv=' . $conv : ''));
+        self::redirect('/admin/test' . ($conv ? '?conv=' . $conv : ''));
+    }
+
+    /** Tarjeta del modo de pruebas de WhatsApp/Messenger (activar con canales y duración, o desactivar). */
+    private static function test_mode_card()
+    {
+        $t = Core::test_mode();
+        if ($t) {
+            $names = array_map(function ($c) { return Core::TEST_CHANNELS[$c]; }, $t['channels']);
+            return '<form method="post" class="card test-on">' . self::csrf_field() . '<input type="hidden" name="action" value="test_mode_off">'
+                . '<h2>🧪 Modo de pruebas ACTIVO</h2>'
+                . '<p>Los mensajes de <b>' . self::h(implode(' y ', $names)) . '</b> llegan solo a esta pestaña: el equipo no los ve ni le suenan. Lo que respondas aquí se envía <b>de verdad</b> por ese canal.</p>'
+                . '<p class="muted">Activado por ' . self::h($t['by']) . ' · se desactiva solo en ' . self::h(self::remaining((int) $t['until'])) . '.</p>'
+                . '<button class="btn btn-danger">Desactivar ahora</button></form>';
+        }
+        $ch = '';
+        foreach (Core::TEST_CHANNELS as $k => $l) {
+            $enabled = (bool) Settings::get($k === 'whatsapp' ? 'wa_enabled' : 'fb_enabled');
+            $ch .= '<label class="check"><input type="checkbox" name="channels[' . $k . ']" value="1" checked> ' . self::h($l) . ($enabled ? '' : ' <small class="muted">(desactivado en Configuración)</small>') . '</label>';
+        }
+        $hours = '';
+        foreach (array(1, 2, 4, 8) as $h) {
+            $hours .= '<option value="' . $h . '"' . ($h === 2 ? ' selected' : '') . '>' . $h . ' h</option>';
+        }
+        return '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="test_mode_on">'
+            . '<h2>📱 Modo de pruebas de WhatsApp y Messenger</h2>'
+            . '<p class="muted">Mientras esté activo, <b>todos</b> los mensajes que entren por los canales marcados se desvían a esta pestaña (el equipo no los recibe), y tus respuestas desde aquí salen de verdad por WhatsApp/Messenger. El chat web sigue funcionando normal. Úsalo cuando el número o la página aún no estén en uso con clientes reales.</p>'
+            . '<div class="filters">' . $ch . '<div class="field"><label for="tm_hours">Duración</label><select id="tm_hours" name="hours">' . $hours . '</select></div>'
+            . '<button class="btn btn-primary">Activar modo de pruebas</button></div></form>';
+    }
+
+    /** Aviso en todas las páginas del panel mientras el modo de pruebas está activo. */
+    private static function test_banner()
+    {
+        $t = Core::test_mode();
+        if (!$t) {
+            return '';
+        }
+        $names = array_map(function ($c) { return Core::TEST_CHANNELS[$c]; }, $t['channels']);
+        return '<div class="test-banner">🧪 <b>Modo de pruebas activo</b> para ' . self::h(implode(' y ', $names)) . ': esos mensajes no llegan al equipo. Se desactiva solo en ' . self::h(self::remaining((int) $t['until'])) . '. '
+            . self::nav_button('Ir a Pruebas', '/admin/test', 'btn btn-sm btn-secondary') . '</div>';
+    }
+
+    private static function remaining($until)
+    {
+        $m = max(0, (int) ceil(($until - time()) / 60));
+        return $m >= 60 ? intdiv($m, 60) . ' h ' . ($m % 60) . ' min' : $m . ' min';
     }
 
     /** Botón de acción sobre un chat de prueba (desactivado si el rol no tiene el permiso). */
@@ -637,7 +703,7 @@ CSS;
             . '<button class="' . $class . '"' . ($allowed ? '' : ' disabled title="Este rol no tiene permiso"') . '>' . $label . '</button></form>';
     }
 
-    private static function test_tab($schema, $me)
+    private static function test_tab($me)
     {
         $agent = self::test_agent();
         $agents = Auth::agents();
@@ -657,8 +723,8 @@ CSS;
                 $perms .= '<span class="badge ' . ($has ? 'b-on' : 'b-off') . '" title="' . self::h($info[1]) . '">' . ($has ? '✓ ' : '✕ ') . self::h($info[0]) . '</span> ';
             }
         }
-        $html = self::settings_tabs($schema, 'test')
-            . '<div class="info-box">Aquí puedes probar el chat <b>sin molestar a nadie</b>: actúas como el usuario que elijas sobre <b>chats de prueba</b>. Esos chats no aparecen en el programa de Windows, no suenan a nadie, no envían nada por WhatsApp/Facebook, no cuentan en las estadísticas y se borran solos a las 24 h. El usuario real no se entera ni cambia su estado.</div>'
+        $html = self::test_mode_card()
+            . '<div class="info-box">Aquí puedes probar el chat <b>sin molestar a nadie</b>: actúas como el usuario que elijas sobre <b>chats de prueba</b>. Esos chats no aparecen en el programa de Windows, no suenan a nadie, los simulados no envían nada a nadie, no cuentan en las estadísticas y se borran solos a las 24 h. El usuario real no se entera ni cambia su estado.</div>'
             . '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="test_as">'
             . '<h2>👤 Actuar como</h2><div class="filters"><div class="field" style="flex:1;min-width:240px"><label for="agent_id">Usuario</label><select id="agent_id" name="agent_id">' . $opts . '</select></div>'
             . '<button class="btn btn-primary">Usar este usuario</button></div>'
@@ -682,9 +748,9 @@ CSS;
         $rows = '';
         foreach ($tests as $c) {
             $status = $c['status'] === 'resolved' ? '<span class="badge b-on">✓ Resuelta</span>' : ((int) $c['assigned_to'] ? '<span class="badge b-receptionist">Asignada</span>' : '<span class="badge b-custom">Nueva</span>');
-            $rows .= '<tr' . ((int) $c['id'] === $sel ? ' style="background:var(--brand-l)"' : '') . '><td><b>' . self::h($c['name'] !== '' ? $c['name'] : 'Visitante #' . $c['id']) . '</b><br><small>' . self::h(mb_substr($c['last_preview'], 0, 80)) . '</small></td>'
+            $rows .= '<tr' . ((int) $c['id'] === $sel ? ' style="background:var(--brand-l)"' : '') . '><td><b>' . self::h($c['name'] !== '' ? $c['name'] : 'Visitante #' . $c['id']) . '</b> <span class="badge b-off">' . self::h($c['channel'] === 'web' ? 'Web (simulado)' : (Core::TEST_CHANNELS[$c['channel']] ?? $c['channel'])) . '</span><br><small>' . self::h(mb_substr($c['last_preview'], 0, 80)) . '</small></td>'
                 . '<td>' . $status . '</td><td>' . self::h((int) $c['assigned_to'] ? (Auth::agent($c['assigned_to'])['name'] ?? '—') : 'Sin asignar') . '</td>'
-                . '<td class="actions">' . self::nav_button('Abrir', '/admin/settings', 'btn btn-secondary btn-sm', array('tab' => 'test', 'conv' => (int) $c['id'])) . '</td></tr>';
+                . '<td class="actions">' . self::nav_button('Abrir', '/admin/test', 'btn btn-secondary btn-sm', array('conv' => (int) $c['id'])) . '</td></tr>';
         }
         $html .= '<div class="card"><h2>🗂 Chats de prueba</h2>'
             . ($rows ? '<div class="table-wrap"><table><thead><tr><th>Visitante</th><th>Estado</th><th>Asignado a</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>'
@@ -727,11 +793,14 @@ CSS;
                 . '<div class="tconv">' . ($t ?: '<p class="muted">Sin mensajes.</p>') . '</div>'
                 . '<div class="split" style="margin-top:16px">'
                 . '<form method="post">' . self::csrf_field() . '<input type="hidden" name="action" value="test_reply"><input type="hidden" name="conv" value="' . (int) $c['id'] . '">'
-                . '<div class="field"><label for="r_text">Responder como ' . self::h($agent ? $agent['name'] : '(elige un usuario)') . '</label><textarea id="r_text" name="text" required></textarea></div>'
+                . '<div class="field"><label for="r_text">Responder como ' . self::h($agent ? $agent['name'] : '(elige un usuario)') . ($c['channel'] !== 'web' ? ' <span class="badge b-custom">se envía de verdad por ' . self::h(Core::TEST_CHANNELS[$c['channel']] ?? $c['channel']) . '</span>' : '') . '</label><textarea id="r_text" name="text" required></textarea></div>'
                 . '<button class="btn btn-primary"' . ($agent ? '' : ' disabled') . '>Enviar respuesta</button></form>'
-                . '<form method="post">' . self::csrf_field() . '<input type="hidden" name="action" value="test_visitor"><input type="hidden" name="conv" value="' . (int) $c['id'] . '">'
-                . '<div class="field"><label for="v_text">Escribir como el visitante</label><textarea id="v_text" name="text" required></textarea></div>'
-                . '<button class="btn btn-secondary">Enviar como visitante</button></form></div>'
+                . ($c['channel'] === 'web'
+                    ? '<form method="post">' . self::csrf_field() . '<input type="hidden" name="action" value="test_visitor"><input type="hidden" name="conv" value="' . (int) $c['id'] . '">'
+                        . '<div class="field"><label for="v_text">Escribir como el visitante</label><textarea id="v_text" name="text" required></textarea></div>'
+                        . '<button class="btn btn-secondary">Enviar como visitante</button></form>'
+                    : '<div class="info-box">Chat real de ' . self::h(Core::TEST_CHANNELS[$c['channel']] ?? $c['channel']) . ' (' . self::h($c['phone'] ?: $c['external_id']) . '): escribe desde ese móvil o cuenta para seguir la conversación. Recarga la página para ver los mensajes nuevos.</div>')
+                . '</div>'
                 . '<div class="filters" style="margin-top:16px">'
                 . self::test_button('test_accept', '📞 Atender', $c['id'], (bool) $agent)
                 . self::test_button('test_resolve', $c['status'] === 'resolved' ? '↺ Reabrir' : '✓ Resuelta', $c['id'], $can('resolve'))
@@ -741,7 +810,7 @@ CSS;
                 . '<button class="btn btn-secondary btn-sm"' . ($can('transfer') ? '' : ' disabled title="Este rol no tiene permiso"') . '>↪ Transferir</button></form>'
                 . '</div></div>';
         }
-        self::layout('Configuración', 'Pruebas: actúa como otro usuario sin molestar a nadie', $html, $me);
+        self::layout('Pruebas', 'Actúa como otro usuario y prueba WhatsApp y Messenger sin molestar a nadie', $html, $me);
     }
 
     /** Acciones de la pestaña Roles (guardar permisos, crear y borrar roles). */
@@ -854,12 +923,6 @@ CSS;
         }
         if ($method === 'GET' && ($_GET['tab'] ?? '') === 'roles') {
             self::roles_tab($schema, $me);
-        }
-        if ($method === 'POST' && strpos((string) ($_POST['action'] ?? ''), 'test_') === 0) {
-            self::test_post($me);
-        }
-        if ($method === 'GET' && ($_GET['tab'] ?? '') === 'test') {
-            self::test_tab($schema, $me);
         }
         if ($method === 'POST' && ($_POST['action'] ?? '') === 'testmail') {
             // Diagnóstico: envía un correo de prueba y muestra el error exacto del servidor de correo si falla.

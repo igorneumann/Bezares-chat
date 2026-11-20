@@ -9,9 +9,40 @@ class Core
         return DB::row('SELECT * FROM conversations WHERE id = ?', array((int) $id));
     }
 
-    public static function find($channel, $ext)
+    /** Última conversación de ese remitente; $test separa los chats de prueba de los reales. */
+    public static function find($channel, $ext, $test = 0)
     {
-        return DB::row('SELECT * FROM conversations WHERE channel = ? AND external_id = ? ORDER BY id DESC LIMIT 1', array($channel, $ext));
+        return DB::row('SELECT * FROM conversations WHERE channel = ? AND external_id = ? AND is_test = ? ORDER BY id DESC LIMIT 1', array($channel, $ext, $test ? 1 : 0));
+    }
+
+    /* ---------------------------------------------------------- modo de pruebas */
+
+    /** Canales que admiten el modo de pruebas (el chat web se prueba con el visitante simulado del panel). */
+    const TEST_CHANNELS = array('whatsapp' => 'WhatsApp', 'facebook' => 'Facebook Messenger');
+
+    /** Estado del modo de pruebas: ['channels' => [...], 'until' => unix, 'by' => nombre] o null si no está activo. */
+    public static function test_mode()
+    {
+        $t = cache_get('test_mode');
+        return is_array($t) && !empty($t['channels']) && (int) $t['until'] > time() ? $t : null;
+    }
+
+    public static function test_mode_for($channel)
+    {
+        $t = self::test_mode();
+        return $t && in_array($channel, $t['channels'], true);
+    }
+
+    /** Activa el modo de pruebas para unos canales durante unas horas (se desactiva solo al caducar). */
+    public static function set_test_mode(array $channels, $hours, $by)
+    {
+        $channels = array_values(array_intersect(array_keys(self::TEST_CHANNELS), $channels));
+        if (!$channels) {
+            cache_del('test_mode');
+            return;
+        }
+        $hours = max(1, min(8, (int) $hours));
+        cache_set('test_mode', array('channels' => $channels, 'until' => time() + $hours * 3600, 'by' => (string) $by), $hours * 3600);
     }
 
     public static function update($id, array $f)
@@ -95,7 +126,10 @@ class Core
             return null; // reintento de Meta
         }
         $now = now_ms();
-        $c = self::find($channel, $ext);
+        // Chat de prueba: simulado desde el panel, o cualquier mensaje de un canal en modo de pruebas.
+        $test = !empty($profile['test']) || self::test_mode_for($channel);
+        $profile['test'] = $test;
+        $c = self::find($channel, $ext, $test);
         $new = false;
 
         if (!$c) {
@@ -114,7 +148,7 @@ class Core
                 'email'       => (string) ($profile['email'] ?? ''),
                 'lang'        => lang_norm($profile['lang'] ?? ''),
                 'country'     => Geo::norm($profile['country'] ?? ''),
-                'is_test'     => empty($profile['test']) ? 0 : 1, // chat de prueba del panel: el equipo no lo ve
+                'is_test'     => empty($profile['test']) ? 0 : 1, // chat de prueba (panel o modo de pruebas): el equipo no lo ve
                 'page_url'    => mb_substr((string) ($profile['page_url'] ?? ''), 0, 500),
                 'status'      => 'open',
                 'onboarding'  => $onb,
