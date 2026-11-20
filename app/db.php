@@ -70,7 +70,7 @@ class DB
         self::exec('DELETE FROM `' . $table . '` WHERE ' . $w, array_values($where));
     }
 
-    const SCHEMA_VERSION = '7';
+    const SCHEMA_VERSION = '8';
 
     /** Aplica el esquema si la versión guardada no es la actual (tras actualizar el código). */
     public static function ensure_schema()
@@ -194,6 +194,10 @@ class DB
         // Claves de rol personalizadas más largas que los roles originales.
         self::pdo()->exec("ALTER TABLE agents MODIFY role VARCHAR(40) NOT NULL DEFAULT 'sales'");
         Roles::ensure_defaults();
+        // Chats de prueba: solo existen en la pestaña Pruebas del panel; el programa de Windows nunca los ve.
+        if (!in_array('is_test', $cols, true)) {
+            self::pdo()->exec("ALTER TABLE conversations ADD is_test TINYINT(1) NOT NULL DEFAULT 0, ADD KEY is_test (is_test)");
+        }
         if (!in_array('resolved_at', $cols, true)) {
             self::pdo()->exec("ALTER TABLE conversations ADD resolved_at BIGINT NOT NULL DEFAULT 0 AFTER first_response_by");
         }

@@ -114,6 +114,7 @@ class Core
                 'email'       => (string) ($profile['email'] ?? ''),
                 'lang'        => lang_norm($profile['lang'] ?? ''),
                 'country'     => Geo::norm($profile['country'] ?? ''),
+                'is_test'     => empty($profile['test']) ? 0 : 1, // chat de prueba del panel: el equipo no lo ve
                 'page_url'    => mb_substr((string) ($profile['page_url'] ?? ''), 0, 500),
                 'status'      => 'open',
                 'onboarding'  => $onb,

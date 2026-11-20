@@ -188,7 +188,8 @@ class Api
     private static function visitor_token()
     {
         $t = (string) self::param('token');
-        if (!preg_match('/^[a-zA-Z0-9\-]{20,64}$/', $t)) {
+        // "paneltest-..." está reservado a los chats de prueba del panel: el widget no puede usarlos.
+        if (!preg_match('/^[a-zA-Z0-9\-]{20,64}$/', $t) || stripos($t, 'paneltest-') === 0) {
             throw new ApiError('Token no válido');
         }
         return $t;
@@ -301,12 +302,14 @@ class Api
 
     private static function visible_sql($a, $alias = '')
     {
+        // Los chats de prueba del panel (is_test) nunca llegan al programa de Windows.
+        $real = $alias . 'is_test = 0 AND ';
         if (Roles::can($a, 'view_all')) {
-            return '1=1'; // permiso «Ver todos los chats»
+            return $real . '1=1'; // permiso «Ver todos los chats»
         }
         // Sus chats asignados/transferidos y, si recibe chats nuevos, también los nuevos sin asignar.
         $own = $alias . 'assigned_to = ' . (int) $a['id'];
-        return Auth::gets_new($a) ? '(' . $own . ' OR ' . $alias . 'assigned_to = 0)' : $own;
+        return $real . (Auth::gets_new($a) ? '(' . $own . ' OR ' . $alias . 'assigned_to = 0)' : $own);
     }
 
     /** Sincronización incremental (cada ~2 s). */
@@ -327,7 +330,7 @@ class Api
         }
         // Conversaciones que deben sonar para este agente
         $ringing = array();
-        foreach (DB::rows("SELECT id, assigned_to FROM conversations WHERE status = 'open' AND accepted_at = 0 AND updated_at > ?", array($now - 7 * 86400000)) as $c) {
+        foreach (DB::rows("SELECT id, assigned_to FROM conversations WHERE is_test = 0 AND status = 'open' AND accepted_at = 0 AND updated_at > ?", array($now - 7 * 86400000)) as $c) {
             if (Auth::should_ring($a, $c)) {
                 $ringing[] = (int) $c['id'];
             }

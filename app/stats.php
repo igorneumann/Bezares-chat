@@ -23,7 +23,7 @@ class Stats
         $start = (new DateTimeImmutable($from . ' 00:00:00', tz()))->getTimestamp() * 1000;
         $end = (new DateTimeImmutable($to . ' 23:59:59', tz()))->getTimestamp() * 1000 + 999;
         $thr = max(1, (int) $threshold_min) * 60000;
-        $rows = DB::rows('SELECT channel, created_at, first_response_at, first_response_by, resolved_at, accepted_by FROM conversations WHERE created_at BETWEEN ? AND ?', array($start, $end));
+        $rows = DB::rows('SELECT channel, created_at, first_response_at, first_response_by, resolved_at, accepted_by FROM conversations WHERE is_test = 0 AND created_at BETWEEN ? AND ?', array($start, $end));
 
         $names = array();
         foreach (Auth::agents() as $a) {

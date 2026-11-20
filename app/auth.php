@@ -304,6 +304,15 @@ class Auth
      */
     public static function can_see($a, $c)
     {
+        if (!$a || !$c || !empty($c['is_test'])) {
+            return false; // los chats de prueba solo se manejan desde la pestaña Pruebas del panel
+        }
+        return self::would_see($a, $c);
+    }
+
+    /** Regla de visibilidad por permisos (sin tener en cuenta si es chat de prueba). */
+    public static function would_see($a, $c)
+    {
         if (!$a || !$c) {
             return false;
         }

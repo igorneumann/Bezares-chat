@@ -24,7 +24,7 @@ class Cron
         // 1) El cliente escribió y nadie contestó en X minutos (solo en horario laboral).
         if (Settings::get('reminder_enabled') && Hours::is_open($now)) {
             $rows = DB::rows(
-                "SELECT id FROM conversations WHERE status = 'open' AND onboarding = 'done'
+                "SELECT id FROM conversations WHERE is_test = 0 AND status = 'open' AND onboarding = 'done'
                  AND last_customer_at > last_agent_at AND last_customer_at < ? AND last_customer_at > ?
                  AND reminder_sent_at < last_customer_at LIMIT 50",
                 array($now - max(1, (int) Settings::get('reminder_minutes')) * 60000, $now - Channels::WINDOW_MS)
@@ -38,7 +38,7 @@ class Cron
         // 2) El agente contestó y el cliente no responde en X horas (dentro de la ventana de 24 h de Meta).
         if (Settings::get('followup_enabled')) {
             $rows = DB::rows(
-                "SELECT id FROM conversations WHERE status = 'open'
+                "SELECT id FROM conversations WHERE is_test = 0 AND status = 'open'
                  AND last_agent_at > last_customer_at AND last_agent_at < ? AND last_customer_at > ?
                  AND followup_sent_at < last_agent_at LIMIT 50",
                 array($now - max(1, (int) Settings::get('followup_hours')) * 3600000, $now - Channels::WINDOW_MS + 600000)
@@ -76,6 +76,16 @@ class Cron
     /** Limpieza técnica diaria: cachés y límites caducados, temporales huérfanos y migración de adjuntos antiguos. */
     public static function housekeeping()
     {
+        // Chats de prueba del panel: se borran solos a las 24 h.
+        $old = DB::col('SELECT id FROM conversations WHERE is_test = 1 AND created_at < ?', array(now_ms() - 86400000));
+        if ($old) {
+            $in = implode(',', array_map('intval', $old));
+            foreach (DB::col("SELECT media_url FROM messages WHERE conversation_id IN ($in) AND media_url <> ''") as $u) {
+                Media::delete_stored($u);
+            }
+            DB::exec("DELETE FROM messages WHERE conversation_id IN ($in)");
+            DB::exec("DELETE FROM conversations WHERE id IN ($in)");
+        }
         DB::exec('DELETE FROM kv WHERE expires > 0 AND expires < ?', array(time()));
         DB::exec('DELETE FROM rate_limits WHERE window_end < ?', array(time() - 60));
         foreach ((array) glob(BZC_ROOT . '/storage/tmp/dl*') as $f) {

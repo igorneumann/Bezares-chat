@@ -284,6 +284,13 @@ input[type=color]{width:60px;height:40px;border:1px solid #d3d9e3;border-radius:
 .del-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line);margin:0}
 .del-row:last-child{border-bottom:0}
 .del-row span{flex:1}
+.tconv{max-height:420px;overflow-y:auto;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.tmsg{max-width:75%;padding:8px 12px;border-radius:10px;background:#fff;border:1px solid var(--line);font-size:14px;overflow-wrap:anywhere}
+.tmsg .tw{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:2px}
+.t-in{align-self:flex-start}
+.t-out{align-self:flex-end;background:#dcebfb;border-color:#c6dcf5}
+.t-bot{align-self:flex-end;background:#eef1f5;border-style:dashed}
+.t-system{align-self:center;background:#eef1f5;font-size:12px;color:var(--muted)}
 .guide{margin-bottom:20px}
 .guide details{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fafbfd}
 .guide summary{cursor:pointer;padding:11px 14px;font-weight:600}
@@ -516,8 +523,225 @@ CSS;
             $on = $active === $i;
             $tabs .= '<button type="submit" name="tab" value="' . $i . '" class="btn' . ($on ? ' on' : '') . '" role="tab" aria-selected="' . ($on ? 'true' : 'false') . '">' . self::h($g['group']) . '</button>';
         }
-        $on = $active === 'roles';
-        return $tabs . '<button type="submit" name="tab" value="roles" class="btn' . ($on ? ' on' : '') . '" role="tab" aria-selected="' . ($on ? 'true' : 'false') . '">🛡 Roles</button></form>';
+        foreach (array('roles' => '🛡 Roles', 'test' => '🧪 Pruebas') as $k => $label) {
+            $on = $active === $k;
+            $tabs .= '<button type="submit" name="tab" value="' . $k . '" class="btn' . ($on ? ' on' : '') . '" role="tab" aria-selected="' . ($on ? 'true' : 'false') . '">' . $label . '</button>';
+        }
+        return $tabs . '</form>';
+    }
+
+    /* ================================================================ pruebas (actuar como otro usuario) */
+
+    /** Usuario como el que se está actuando en la pestaña Pruebas (o null). */
+    private static function test_agent()
+    {
+        $a = !empty($_SESSION['test_as']) ? Auth::agent((int) $_SESSION['test_as']) : null;
+        return $a && (int) $a['active'] ? $a : null;
+    }
+
+    private static function test_conv($id)
+    {
+        $c = Core::conv((int) $id);
+        if (!$c || empty($c['is_test'])) {
+            throw new ApiError('Chat de prueba no encontrado');
+        }
+        return $c;
+    }
+
+    private static function delete_conv($id)
+    {
+        foreach (DB::col("SELECT media_url FROM messages WHERE conversation_id = ? AND media_url <> ''", array((int) $id)) as $u) {
+            Media::delete_stored($u);
+        }
+        DB::delete('messages', array('conversation_id' => (int) $id));
+        DB::delete('conversations', array('id' => (int) $id));
+    }
+
+    /** Acciones de la pestaña Pruebas. Todo ocurre sobre chats de prueba, que el programa de Windows no ve. */
+    private static function test_post($me)
+    {
+        self::check_csrf();
+        $action = (string) ($_POST['action'] ?? '');
+        $conv = (int) ($_POST['conv'] ?? 0);
+        try {
+            if ($action === 'test_as') {
+                $a = Auth::agent((int) ($_POST['agent_id'] ?? 0));
+                if (!$a || !(int) $a['active']) {
+                    throw new ApiError('Elige un usuario activo');
+                }
+                $_SESSION['test_as'] = (int) $a['id'];
+                self::flash('Ahora actúas como ' . $a['name'] . ' (' . Roles::name($a['role']) . ') en los chats de prueba.');
+            } elseif ($action === 'test_clear') {
+                foreach (DB::col('SELECT id FROM conversations WHERE is_test = 1') as $id) {
+                    self::delete_conv($id);
+                }
+                $conv = 0;
+                self::flash('Chats de prueba borrados.');
+            } else {
+                $agent = self::test_agent();
+                if ($action === 'test_start') {
+                    $text = clean_text($_POST['text'] ?? '');
+                    if ($text === '') {
+                        throw new ApiError('Escribe el primer mensaje del visitante');
+                    }
+                    $lang = lang_norm($_POST['lang'] ?? 'es') ?: 'es';
+                    $ext = 'paneltest-' . random_token(10);
+                    Core::incoming('web', $ext, array('lang' => $lang, 'page_url' => rtrim((string) cfg('base_url'), '/') . '/admin (prueba)', 'test' => 1), $text);
+                    $c = Core::find('web', $ext);
+                    $conv = $c ? (int) $c['id'] : 0;
+                    self::flash('Chat de prueba creado. El bot ha respondido como lo haría con un visitante real.');
+                } elseif ($action === 'test_visitor') {
+                    $c = self::test_conv($conv);
+                    $text = clean_text($_POST['text'] ?? '');
+                    if ($text === '') {
+                        throw new ApiError('Escribe el mensaje del visitante');
+                    }
+                    Core::incoming('web', $c['external_id'], array('lang' => $c['lang'], 'test' => 1), $text);
+                } else {
+                    if (!$agent) {
+                        throw new ApiError('Primero elige como qué usuario quieres actuar');
+                    }
+                    $c = self::test_conv($conv);
+                    if ($action === 'test_reply') {
+                        Core::agent_send($c, $agent, clean_text($_POST['text'] ?? ''));
+                    } elseif ($action === 'test_accept') {
+                        Core::accept($c, $agent);
+                    } elseif ($action === 'test_transfer') {
+                        Auth::require_perm($agent, 'transfer');
+                        $to = Auth::agent((int) ($_POST['to'] ?? 0));
+                        if (!$to || !(int) $to['active']) {
+                            throw new ApiError('Usuario de destino no válido');
+                        }
+                        Core::transfer($c, $agent, $to, (string) ($_POST['note'] ?? ''));
+                    } elseif ($action === 'test_resolve') {
+                        Auth::require_perm($agent, 'resolve');
+                        Core::resolve($c, $agent, $c['status'] !== 'resolved');
+                    } elseif ($action === 'test_delete') {
+                        Auth::require_perm($agent, 'delete');
+                        self::delete_conv($c['id']);
+                        $conv = 0;
+                        self::flash('Chat de prueba borrado.');
+                    }
+                }
+            }
+        } catch (ApiError $e) {
+            self::flash($e->getMessage(), true);
+        }
+        self::redirect('/admin/settings?tab=test' . ($conv ? '&conv=' . $conv : ''));
+    }
+
+    /** Botón de acción sobre un chat de prueba (desactivado si el rol no tiene el permiso). */
+    private static function test_button($action, $label, $conv, $allowed, $class = 'btn btn-secondary btn-sm', $extra = '')
+    {
+        return '<form method="post" class="inline">' . self::csrf_field() . '<input type="hidden" name="action" value="' . $action . '"><input type="hidden" name="conv" value="' . (int) $conv . '">' . $extra
+            . '<button class="' . $class . '"' . ($allowed ? '' : ' disabled title="Este rol no tiene permiso"') . '>' . $label . '</button></form>';
+    }
+
+    private static function test_tab($schema, $me)
+    {
+        $agent = self::test_agent();
+        $agents = Auth::agents();
+
+        // 1) Actuar como
+        $opts = '';
+        foreach ($agents as $a) {
+            if (!(int) $a['active']) {
+                continue;
+            }
+            $opts .= '<option value="' . (int) $a['id'] . '"' . ($agent && (int) $agent['id'] === (int) $a['id'] ? ' selected' : '') . '>' . self::h($a['name'] . ' — ' . Roles::name($a['role'])) . '</option>';
+        }
+        $perms = '';
+        if ($agent) {
+            foreach (Roles::PERMS as $p => $info) {
+                $has = Roles::can($agent, $p);
+                $perms .= '<span class="badge ' . ($has ? 'b-on' : 'b-off') . '" title="' . self::h($info[1]) . '">' . ($has ? '✓ ' : '✕ ') . self::h($info[0]) . '</span> ';
+            }
+        }
+        $html = self::settings_tabs($schema, 'test')
+            . '<div class="info-box">Aquí puedes probar el chat <b>sin molestar a nadie</b>: actúas como el usuario que elijas sobre <b>chats de prueba</b>. Esos chats no aparecen en el programa de Windows, no suenan a nadie, no envían nada por WhatsApp/Facebook, no cuentan en las estadísticas y se borran solos a las 24 h. El usuario real no se entera ni cambia su estado.</div>'
+            . '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="test_as">'
+            . '<h2>👤 Actuar como</h2><div class="filters"><div class="field" style="flex:1;min-width:240px"><label for="agent_id">Usuario</label><select id="agent_id" name="agent_id">' . $opts . '</select></div>'
+            . '<button class="btn btn-primary">Usar este usuario</button></div>'
+            . ($agent ? '<p style="margin:14px 0 0">Permisos de <b>' . self::h($agent['name']) . '</b> (' . self::h(Roles::name($agent['role'])) . '):</p><p style="margin:6px 0 0;line-height:2">' . $perms . '</p>' : '<p class="muted" style="margin:12px 0 0">Elige un usuario para empezar.</p>')
+            . '</form>';
+
+        // 2) Simular visitante
+        $langs = array('es' => 'Español', 'en' => 'Inglés', 'fr' => 'Francés', 'de' => 'Alemán', 'pt' => 'Portugués', 'it' => 'Italiano');
+        $lo = '';
+        foreach ($langs as $k => $l) {
+            $lo .= '<option value="' . $k . '">' . $l . '</option>';
+        }
+        $html .= '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="test_start">'
+            . '<h2>💬 Simular un visitante nuevo (web)</h2>'
+            . '<div class="field"><label for="t_text">Primer mensaje del visitante</label><textarea id="t_text" name="text" required placeholder="Ej.: Hola, busco una toma de fuerza para un camión Volvo"></textarea><small>Escríbelo en el idioma elegido para probar también la traducción automática.</small></div>'
+            . '<div class="filters"><div class="field"><label for="t_lang">Idioma del navegador del visitante</label><select id="t_lang" name="lang">' . $lo . '</select></div><button class="btn btn-primary">Iniciar chat de prueba</button></div></form>';
+
+        // 3) Lista de chats de prueba
+        $tests = DB::rows('SELECT * FROM conversations WHERE is_test = 1 ORDER BY updated_at DESC LIMIT 50');
+        $sel = isset($_GET['conv']) ? (int) $_GET['conv'] : 0;
+        $rows = '';
+        foreach ($tests as $c) {
+            $status = $c['status'] === 'resolved' ? '<span class="badge b-on">✓ Resuelta</span>' : ((int) $c['assigned_to'] ? '<span class="badge b-receptionist">Asignada</span>' : '<span class="badge b-custom">Nueva</span>');
+            $rows .= '<tr' . ((int) $c['id'] === $sel ? ' style="background:var(--brand-l)"' : '') . '><td><b>' . self::h($c['name'] !== '' ? $c['name'] : 'Visitante #' . $c['id']) . '</b><br><small>' . self::h(mb_substr($c['last_preview'], 0, 80)) . '</small></td>'
+                . '<td>' . $status . '</td><td>' . self::h((int) $c['assigned_to'] ? (Auth::agent($c['assigned_to'])['name'] ?? '—') : 'Sin asignar') . '</td>'
+                . '<td class="actions">' . self::nav_button('Abrir', '/admin/settings', 'btn btn-secondary btn-sm', array('tab' => 'test', 'conv' => (int) $c['id'])) . '</td></tr>';
+        }
+        $html .= '<div class="card"><h2>🗂 Chats de prueba</h2>'
+            . ($rows ? '<div class="table-wrap"><table><thead><tr><th>Visitante</th><th>Estado</th><th>Asignado a</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>'
+                . '<div style="margin-top:14px">' . self::test_button('test_clear', '🗑 Borrar todos los chats de prueba', 0, true, 'btn btn-danger btn-sm') . '</div>'
+                : '<p class="muted">Todavía no hay chats de prueba.</p>')
+            . '</div>';
+
+        // 4) Conversación seleccionada
+        $c = $sel ? Core::conv($sel) : null;
+        if ($c && !empty($c['is_test'])) {
+            $msgs = DB::rows('SELECT * FROM messages WHERE conversation_id = ? ORDER BY id', array($c['id']));
+            $tz = tz();
+            $t = '';
+            foreach ($msgs as $m) {
+                $when = (new DateTimeImmutable('@' . intdiv((int) $m['created_at'], 1000)))->setTimezone($tz)->format('H:i');
+                $who = array('in' => 'Visitante', 'out' => Auth::first_name($m['agent_id']) ?: 'Agente', 'bot' => '🤖 Bot', 'system' => 'ℹ Sistema')[$m['direction']] ?? $m['direction'];
+                $body = self::h($m['body']);
+                if ($m['body_translated']) {
+                    $body .= '<br><small>🌐 ' . ($m['direction'] === 'in' ? 'Traducción para el equipo' : 'Enviado al visitante') . ': ' . self::h($m['body_translated']) . '</small>';
+                }
+                if ($m['media_url']) {
+                    $body .= ' <a href="' . self::h(Media::url($m['media_url'])) . '" target="_blank" rel="noopener">📎 ' . self::h($m['media_name'] ?: 'adjunto') . '</a>';
+                }
+                $t .= '<div class="tmsg t-' . self::h($m['direction']) . '"><div class="tw">' . self::h($who) . ' · ' . $when . '</div>' . $body . '</div>';
+            }
+            $info = '';
+            if ($agent) {
+                $sees = Auth::would_see($agent, $c);
+                $rings = $c['status'] === 'open' && !(int) $c['accepted_at'] && Auth::should_ring($agent, $c);
+                $info = '<p>Para <b>' . self::h($agent['name']) . '</b>: ' . ($sees ? '✓ vería este chat' : '✕ no vería este chat') . ' · ' . ($rings ? '🔔 le estaría sonando' : 'no le sonaría') . '</p>';
+            }
+            $transferOpts = '';
+            foreach ($agents as $a) {
+                if ((int) $a['active'] && (!$agent || (int) $a['id'] !== (int) $agent['id'])) {
+                    $transferOpts .= '<option value="' . (int) $a['id'] . '">' . self::h($a['name'] . ' — ' . Roles::name($a['role'])) . '</option>';
+                }
+            }
+            $can = function ($p) use ($agent) { return $agent && Roles::can($agent, $p); };
+            $html .= '<div class="card"><h2>Conversación de prueba: ' . self::h($c['name'] !== '' ? $c['name'] : 'Visitante #' . $c['id']) . '</h2>' . $info
+                . '<div class="tconv">' . ($t ?: '<p class="muted">Sin mensajes.</p>') . '</div>'
+                . '<div class="split" style="margin-top:16px">'
+                . '<form method="post">' . self::csrf_field() . '<input type="hidden" name="action" value="test_reply"><input type="hidden" name="conv" value="' . (int) $c['id'] . '">'
+                . '<div class="field"><label for="r_text">Responder como ' . self::h($agent ? $agent['name'] : '(elige un usuario)') . '</label><textarea id="r_text" name="text" required></textarea></div>'
+                . '<button class="btn btn-primary"' . ($agent ? '' : ' disabled') . '>Enviar respuesta</button></form>'
+                . '<form method="post">' . self::csrf_field() . '<input type="hidden" name="action" value="test_visitor"><input type="hidden" name="conv" value="' . (int) $c['id'] . '">'
+                . '<div class="field"><label for="v_text">Escribir como el visitante</label><textarea id="v_text" name="text" required></textarea></div>'
+                . '<button class="btn btn-secondary">Enviar como visitante</button></form></div>'
+                . '<div class="filters" style="margin-top:16px">'
+                . self::test_button('test_accept', '📞 Atender', $c['id'], (bool) $agent)
+                . self::test_button('test_resolve', $c['status'] === 'resolved' ? '↺ Reabrir' : '✓ Resuelta', $c['id'], $can('resolve'))
+                . self::test_button('test_delete', '🗑 Borrar', $c['id'], $can('delete'), 'btn btn-danger btn-sm')
+                . '<form method="post" class="inline">' . self::csrf_field() . '<input type="hidden" name="action" value="test_transfer"><input type="hidden" name="conv" value="' . (int) $c['id'] . '">'
+                . '<select name="to" aria-label="Transferir a" style="width:auto">' . $transferOpts . '</select> '
+                . '<button class="btn btn-secondary btn-sm"' . ($can('transfer') ? '' : ' disabled title="Este rol no tiene permiso"') . '>↪ Transferir</button></form>'
+                . '</div></div>';
+        }
+        self::layout('Configuración', 'Pruebas: actúa como otro usuario sin molestar a nadie', $html, $me);
     }
 
     /** Acciones de la pestaña Roles (guardar permisos, crear y borrar roles). */
@@ -630,6 +854,12 @@ CSS;
         }
         if ($method === 'GET' && ($_GET['tab'] ?? '') === 'roles') {
             self::roles_tab($schema, $me);
+        }
+        if ($method === 'POST' && strpos((string) ($_POST['action'] ?? ''), 'test_') === 0) {
+            self::test_post($me);
+        }
+        if ($method === 'GET' && ($_GET['tab'] ?? '') === 'test') {
+            self::test_tab($schema, $me);
         }
         if ($method === 'POST' && ($_POST['action'] ?? '') === 'testmail') {
             // Diagnóstico: envía un correo de prueba y muestra el error exacto del servidor de correo si falla.
