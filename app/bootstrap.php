@@ -30,6 +30,7 @@ require __DIR__ . '/core.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/stats.php';
 require __DIR__ . '/cron.php';
+require __DIR__ . '/mail.php';
 
 /** Error de API con código HTTP. */
 class ApiError extends Exception
@@ -166,6 +167,11 @@ function cache_get($key)
 function cache_set($key, $value, $ttl = 0)
 {
     DB::exec('REPLACE INTO kv (k, v, expires) VALUES (?, ?, ?)', array($key, json_encode($value), $ttl ? time() + $ttl : 0));
+}
+
+function cache_del($key)
+{
+    DB::exec('DELETE FROM kv WHERE k = ?', array($key));
 }
 
 /** Limitador por IP. Devuelve false si se supera $max en $seconds. */

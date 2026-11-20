@@ -66,11 +66,95 @@ class Auth
     public static function login($email, $password)
     {
         $a = self::check_credentials($email, $password);
+        return array('token' => self::issue_token($a['id']), 'agent' => self::out($a));
+    }
+
+    /**
+     * Crea un token de sesión (cliente de Windows o "recordar sesión" del panel).
+     * Solo se guarda su hash; se revoca al cambiar la contraseña o desactivar el usuario.
+     */
+    public static function issue_token($agent_id, $ttl_ms = self::TTL_MS)
+    {
         $token = random_token();
         $now = now_ms();
-        DB::insert('tokens', array('token_hash' => hash('sha256', $token), 'agent_id' => $a['id'], 'expires' => $now + self::TTL_MS, 'created_at' => $now));
+        DB::insert('tokens', array('token_hash' => hash('sha256', $token), 'agent_id' => (int) $agent_id, 'expires' => $now + $ttl_ms, 'created_at' => $now));
         DB::exec('DELETE FROM tokens WHERE expires < ?', array($now));
-        return array('token' => $token, 'agent' => self::out($a));
+        return $token;
+    }
+
+    /** Agente activo dueño de un token válido, o null. */
+    public static function agent_by_token($token)
+    {
+        if (!preg_match('/^[a-f0-9]{64}$/', (string) $token)) {
+            return null;
+        }
+        return DB::row('SELECT a.* FROM tokens t JOIN agents a ON a.id = t.agent_id WHERE t.token_hash = ? AND t.expires > ? AND a.active = 1', array(hash('sha256', $token), now_ms()));
+    }
+
+    public static function revoke_token($token)
+    {
+        if (preg_match('/^[a-f0-9]{64}$/', (string) $token)) {
+            DB::delete('tokens', array('token_hash' => hash('sha256', $token)));
+        }
+    }
+
+    /* ---------------------------------------------------------- recuperar contraseña */
+
+    const RESET_TTL = 3600; // el enlace vale 1 hora
+
+    /**
+     * Envía el enlace de recuperación. Responde igual exista o no el correo (no revela usuarios).
+     */
+    public static function request_reset($email)
+    {
+        $email = strtolower(trim((string) $email));
+        if (!rate_limit('forgot', 5, 3600)) {
+            throw new ApiError('Demasiadas solicitudes. Inténtalo dentro de una hora.', 429);
+        }
+        $kAcc = 'forgot:acc:' . md5($email);
+        if (!valid_email($email) || rate_exceeded($kAcc, 3)) {
+            return;
+        }
+        rate_hit($kAcc, 3600);
+        $a = DB::row('SELECT * FROM agents WHERE email = ? AND active = 1', array($email));
+        if (!$a) {
+            return;
+        }
+        $token = random_token();
+        cache_set('reset:' . hash('sha256', $token), (int) $a['id'], self::RESET_TTL);
+        $link = rtrim(cfg('base_url'), '/') . '/admin/reset?token=' . $token;
+        $text = "Hola " . $a['name'] . ",\n\n"
+            . "Hemos recibido una solicitud para cambiar tu contraseña de Bezares Chat.\n"
+            . "Para crear una nueva, abre este enlace (válido durante 1 hora y de un solo uso):\n\n"
+            . $link . "\n\n"
+            . "Si no lo has pedido tú, ignora este mensaje: tu contraseña actual sigue siendo válida.\n\n"
+            . "Bezares Chat";
+        if (!Mailer::send($a['email'], 'Recuperar contraseña de Bezares Chat', $text)) {
+            log_error('No se pudo enviar el correo de recuperación a ' . $a['email']);
+        }
+    }
+
+    /** Agente asociado a un enlace de recuperación válido, o null. */
+    public static function reset_agent($token)
+    {
+        if (!preg_match('/^[a-f0-9]{64}$/', (string) $token)) {
+            return null;
+        }
+        $id = cache_get('reset:' . hash('sha256', $token));
+        $a = $id ? self::agent($id) : null;
+        return $a && (int) $a['active'] ? $a : null;
+    }
+
+    /** Cambia la contraseña con un enlace válido (un solo uso). Cierra todas las sesiones abiertas. */
+    public static function complete_reset($token, $password)
+    {
+        $a = self::reset_agent($token);
+        if (!$a) {
+            throw new ApiError('El enlace no es válido o ha caducado. Solicita uno nuevo.');
+        }
+        self::save(array('password' => $password), $a['id']);
+        cache_del('reset:' . hash('sha256', $token));
+        return $a;
     }
 
     private static function token()
@@ -91,7 +175,7 @@ class Auth
         self::$current = null;
         $t = self::token();
         if ($t) {
-            $a = DB::row('SELECT a.* FROM tokens t JOIN agents a ON a.id = t.agent_id WHERE t.token_hash = ? AND t.expires > ? AND a.active = 1', array(hash('sha256', $t), now_ms()));
+            $a = self::agent_by_token($t);
             if ($a) {
                 DB::update('agents', array('last_seen' => now_ms()), array('id' => $a['id']));
                 self::$current = $a;
@@ -111,10 +195,7 @@ class Auth
 
     public static function logout()
     {
-        $t = self::token();
-        if ($t) {
-            DB::delete('tokens', array('token_hash' => hash('sha256', $t)));
-        }
+        self::revoke_token(self::token());
     }
 
     public static function save(array $d, $id = 0)

@@ -23,6 +23,15 @@ return array(
     // Clave que se pide una sola vez para crear el primer administrador en /admin (larga y aleatoria)
     'setup_key'  => 'CAMBIA_ESTO_POR_UNA_CLAVE_LARGA',
 
+    // Correo para recuperar contraseñas. Con smtp_host vacío se usa mail() de PHP.
+    'mail_from'      => 'chat@bezares.com',
+    'mail_from_name' => 'Bezares Chat',
+    'smtp_host'      => '',            // p. ej. 'smtp.office365.com' o el SMTP de tu hosting
+    'smtp_port'      => 587,
+    'smtp_secure'    => 'tls',         // 'tls' (STARTTLS, puerto 587), 'ssl' (puerto 465) o ''
+    'smtp_user'      => '',
+    'smtp_pass'      => '',
+
     // Redirigir siempre a HTTPS (desactívalo solo para pruebas en local)
     'force_https' => true,
 

@@ -5,7 +5,7 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
 | Pieza | Repositorio | Qué hace |
 |---|---|---|
 | Servidor PHP | [Bezares-chat](https://github.com/igorneumann/Bezares-chat) | Base de datos, API, WhatsApp/Facebook, traducción, horario, recordatorios, limpieza, **panel de administración y estadísticas** |
-| Cliente Windows | [BZChat-client](https://github.com/igorneumann/BZChat-client) | Programa portable (un `.exe` de 70 KB) para contestar chats, con timbre de teléfono |
+| Cliente Windows | [BZChat-client](https://github.com/igorneumann/BZChat-client) | Programa portable (un `.exe` de 72 KB) para contestar chats, con timbre de teléfono |
 | Plugin WordPress | [BZChat-plugin](https://github.com/igorneumann/BZChat-plugin) | Solo inserta el icono flotante en la web. No usa la base de datos de WordPress |
 
 ```
@@ -26,6 +26,7 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
 - Envío y recepción de **imágenes, audio, vídeo y documentos** (PDF, Word, Excel, PowerPoint, OpenDocument, RTF, TXT, CSV) por la web, WhatsApp y Facebook.
 - **Recordatorio** automático si nadie contesta en X minutos y **seguimiento** si el cliente no responde en X horas, para mantener abierta la ventana de 24 h de WhatsApp.
 - **Limpieza automática** de chats inactivos tras X meses, adjuntos incluidos.
+- **Panel de administración** en `/admin` con inicio de sesión («mostrar contraseña» y «recordar sesión 30 días») y **recuperación de contraseña por correo**, para todos los roles.
 - **Estadísticas** para el administrador: chats recibidos y contestados, porcentaje contestado en menos de X minutos, tiempo de respuesta medio y mediano, en tiempo real y en horario laboral, por agente, por canal y por día.
 
 ## Requisitos
@@ -40,6 +41,7 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
    Si tu hosting no lo permite, sube todo a la raíz del subdominio: el `.htaccess` incluido redirige a `public/` y bloquea el resto.
 2. Crea una base de datos MySQL vacía y un usuario con permisos sobre ella.
 3. Copia `config.sample.php` como **`config.php`** y rellena los datos de la base de datos, `base_url`, `allowed_origins` y una `setup_key` larga y aleatoria.
+   Configura también el **correo** (`mail_from` y, recomendado, los datos `smtp_*`): se usa para que cualquier usuario recupere su contraseña desde «¿Has olvidado tu contraseña?».
 4. Abre `https://chat.bezares.com/admin/`. Se crean las tablas y te pide la `setup_key` para crear el **primer administrador**.
 5. En **Configuración**, revisa mensajes, horario, OpenAI y WhatsApp/Facebook. En **Usuarios**, crea recepcionistas y comerciales.
 6. Programa el cron cada minuto (recomendado, para recordatorios y limpieza):

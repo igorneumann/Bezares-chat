@@ -16,6 +16,9 @@ Auditoría del código del 19/11/2026, sobre el servidor, el widget, el plugin y
 - En el PC, el token se guarda **cifrado con DPAPI**: solo lo puede leer el mismo usuario de Windows. La contraseña nunca se guarda.
 - Panel de administración: cookie `HttpOnly`, `Secure` y `SameSite=Strict`, modo estricto de sesión, ID regenerado al entrar, caducidad tras 2 h de inactividad, **token CSRF** en todos los formularios y cierre de sesión por POST.
 - Solo el rol Administrador entra en el panel. Ningún administrador puede quitarse el rol, desactivarse ni eliminarse a sí mismo.
+- **Recordar sesión** (panel): cookie `HttpOnly`, `Secure` y `SameSite=Strict` con un token aleatorio de 256 bits, guardado solo como hash. Caduca a los 30 días y se revoca al cerrar sesión, al cambiar la contraseña o al desactivar el usuario.
+- **Recuperar contraseña**: enlace de un solo uso, válido 1 hora, con el token guardado como hash. La respuesta es la misma exista o no el correo, y hay límites de 5 solicitudes por hora por IP y 3 por cuenta. Al cambiar la contraseña se cierran todas las sesiones. La página no envía `Referer`.
+- La CSP del panel solo permite el script propio `/admin.js` (botón «Mostrar contraseña»).
 - Instalación inicial protegida por `setup_key`. Solo funciona mientras no existe ningún usuario y no acepta la clave de ejemplo.
 
 ### Autorización
