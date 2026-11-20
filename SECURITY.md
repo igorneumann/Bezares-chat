@@ -42,7 +42,7 @@ Auditoría del código del 19/11/2026, sobre el servidor, el widget, el plugin y
 - **Anti-SSRF**: los adjuntos solo se descargan de dominios de Meta (`fbcdn.net`, `fbsbx.com`, `whatsapp.net`…) por HTTPS. Así el token de WhatsApp nunca se envía a terceros.
 
 ### Abuso del widget público
-- CORS restringido a `allowed_origins` (bezares.com).
+- Solo las **webs de confianza** (Configuración → General y widget, más `allowed_origins` de config.php) pueden incrustar el widget: CORS restringido a esa lista, y el servidor rechaza con 403 cualquier petición del widget que llegue desde otro origen, aunque sea un envío "simple" sin comprobación previa del navegador. Solo se admiten orígenes https.
 - Límites por IP: 30 mensajes por minuto, 10 archivos cada 5 minutos y **5 chats nuevos por hora**, para evitar inundar a recepción de llamadas falsas.
 - Identificador del visitante generado con un generador criptográfico (`crypto.randomUUID` o `getRandomValues`).
 - Si usas Cloudflare u otro proxy, configura `client_ip_header`. Si no, todos los visitantes compartirían la IP del proxy.

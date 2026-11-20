@@ -40,7 +40,7 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
 1. Crea el subdominio `chat.bezares.com` y apunta su carpeta raíz a **`public/`** de este repositorio.
    Si tu hosting no lo permite, sube todo a la raíz del subdominio: el `.htaccess` incluido redirige a `public/` y bloquea el resto.
 2. Crea una base de datos MySQL vacía y un usuario con permisos sobre ella.
-3. Copia `config.sample.php` como **`config.php`** y rellena los datos de la base de datos, `base_url`, `allowed_origins` y una `setup_key` larga y aleatoria.
+3. Copia `config.sample.php` como **`config.php`** y rellena los datos de la base de datos, `base_url` y una `setup_key` larga y aleatoria.
    Configura también el **correo** (`mail_from` y, recomendado, los datos `smtp_*`): se usa para que cualquier usuario recupere su contraseña desde «¿Has olvidado tu contraseña?».
 4. Abre `https://chat.bezares.com/admin/`. Se crean las tablas y te pide la `setup_key` para crear el **primer administrador**.
 5. En **Configuración**, revisa mensajes, horario, OpenAI y WhatsApp/Facebook. En **Usuarios**, crea recepcionistas y comerciales.
@@ -51,6 +51,30 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
    Si no hay cron, las tareas se ejecutan igualmente mientras haya algún cliente de Windows conectado.
 7. Instala el plugin de WordPress ([BZChat-plugin](https://github.com/igorneumann/BZChat-plugin)) y entrega el cliente de Windows ([BZChat-client](https://github.com/igorneumann/BZChat-client)) a los agentes.
 8. Cuando todo funcione, desactiva Crisp en WordPress.
+
+## Incrustar el chat en otras webs (por ejemplo, cloud.bezares.com)
+
+1. En `/admin` → **Configuración → General y widget → Webs de confianza**, añade la web, una por línea (por ejemplo `https://cloud.bezares.com`) y guarda. En las webs que no estén en la lista el widget no aparece y el servidor rechaza sus peticiones.
+2. Pega este código antes de `</body>` en la web (en WordPress no hace falta, lo añade el plugin):
+   ```html
+   <script src="https://chat.bezares.com/widget.js" data-position="bottom-right" data-offset="20" data-devices="desktop,tablet,mobile" defer></script>
+   ```
+   - `data-position`: `bottom-right`, `bottom-left`, `top-right` o `top-left`
+   - `data-devices`: cualquier combinación de `desktop`, `tablet` y `mobile`
+3. Si la web tiene una **política de seguridad de contenidos (CSP)** estricta, debe permitir `https://chat.bezares.com` en `script-src`, `style-src`, `connect-src`, `img-src` y `media-src`. Para grabar notas de voz, además, el micrófono no debe estar bloqueado por `Permissions-Policy`.
+
+**Nextcloud** (`cloud.bezares.com`) envía una CSP estricta y no permite editar el HTML de sus páginas. Hace falta una app que inserte scripts, como *JSLoader* desde la tienda de apps de Nextcloud, con un fragmento que cree la etiqueta:
+
+```js
+var s = document.createElement('script');
+s.src = 'https://chat.bezares.com/widget.js';
+s.defer = true;
+s.dataset.position = 'bottom-right';
+s.dataset.devices = 'desktop,tablet,mobile';
+document.head.appendChild(s);
+```
+
+y añadir `https://chat.bezares.com` a los dominios permitidos de la CSP en esa misma app. Si la app no permite ampliar la CSP, el navegador bloqueará el widget aunque la web esté en la lista de confianza.
 
 ### WhatsApp y Facebook (Meta)
 
@@ -85,7 +109,7 @@ public/             → raíz web: index.php (API + panel), widget.js, widget.cs
 | Método | Ruta | Uso |
 |---|---|---|
 | GET | `/api/widget/config` | Configuración pública del widget |
-| GET/POST | `/api/visitor/messages`, POST `/api/visitor/upload` | Widget web (CORS solo para `allowed_origins`) |
+| GET/POST | `/api/visitor/messages`, POST `/api/visitor/upload` | Widget web (solo desde las webs de confianza) |
 | GET/POST | `/api/webhook/whatsapp`, `/api/webhook/facebook` | Webhooks de Meta (firma obligatoria) |
 | POST | `/api/auth/login`, `/api/auth/logout` | Sesión del cliente de Windows |
 | GET | `/api/sync?since=` | Sincronización incremental (cada 2 s) |

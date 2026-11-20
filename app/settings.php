@@ -21,6 +21,10 @@ class Settings
                 array('k' => 'privacy_url', 'label' => 'URL de la política de privacidad', 'type' => 'text', 'def' => 'https://bezares.com/politica-de-privacidad/', 'help' => 'RGPD: el widget muestra un aviso con este enlace antes de pedir nombre y correo.'),
                 array('k' => 'privacy_es', 'label' => 'Aviso de privacidad (ES)', 'type' => 'text', 'def' => 'Al chatear aceptas nuestra política de privacidad.'),
                 array('k' => 'privacy_en', 'label' => 'Aviso de privacidad (EN)', 'type' => 'text', 'def' => 'By chatting you accept our privacy policy.'),
+                array('k' => 'trusted_origins', 'label' => 'Webs de confianza (pueden incrustar el chat)', 'type' => 'origins', 'def' => "https://bezares.com\nhttps://www.bezares.com\nhttps://cloud.bezares.com",
+                    'help' => 'Una dirección por línea, con https://. Solo estas webs pueden mostrar el widget; en cualquier otra no aparece. Se guarda solo el dominio (por ejemplo https://cloud.bezares.com).'),
+                array('k' => 'help_embed', 'label' => 'Código para incrustar en otra web', 'type' => 'info', 'def' => '',
+                    'help' => '<script src="' . rtrim((string) cfg('base_url'), '/') . '/widget.js" data-position="bottom-right" data-offset="20" data-devices="desktop,tablet,mobile" defer></script>  ·  data-position: bottom-right, bottom-left, top-right o top-left · data-devices: desktop, tablet, mobile. En WordPress no hace falta: el plugin lo añade solo.'),
                 array('k' => 'help_devices', 'label' => 'Posición y dispositivos', 'type' => 'info', 'def' => '', 'help' => 'La esquina del icono y los dispositivos donde aparece se configuran en el plugin de WordPress.'),
             )),
             array('group' => 'Mensajes de bienvenida', 'fields' => array(
@@ -160,6 +164,8 @@ class Settings
                     );
                 }
                 $v = $h;
+            } elseif ($t === 'origins') {
+                $v = implode("\n", self::parse_origins((string) $v));
             } elseif ($t === 'textarea') {
                 $v = mb_substr(trim(strip_tags((string) $v)), 0, 2000);
             } else {
@@ -168,6 +174,50 @@ class Settings
             DB::exec('REPLACE INTO settings (k, v) VALUES (?, ?)', array($k, json_encode($v)));
         }
         self::$cache = null;
+    }
+
+    /**
+     * Convierte una lista de URLs (una por línea, comas o espacios) en orígenes únicos "https://dominio[:puerto]".
+     * Solo se admite https (y http://localhost para pruebas). Se descarta lo que no sea una URL válida.
+     */
+    public static function parse_origins($text)
+    {
+        $out = array();
+        foreach (preg_split('/[\s,;]+/', (string) $text) as $u) {
+            $u = trim($u);
+            if ($u === '') {
+                continue;
+            }
+            if (!preg_match('#^[a-z]+://#i', $u)) {
+                $u = 'https://' . $u;
+            }
+            $p = parse_url($u);
+            if (!$p || empty($p['host']) || isset($p['user'])) {
+                continue;
+            }
+            $scheme = strtolower($p['scheme'] ?? '');
+            $host = strtolower($p['host']);
+            if (!preg_match('/^[a-z0-9.\-]+$/', $host)) {
+                continue;
+            }
+            $local = in_array($host, array('localhost', '127.0.0.1'), true);
+            if ($scheme !== 'https' && !($scheme === 'http' && $local)) {
+                continue;
+            }
+            $origin = $scheme . '://' . $host . (isset($p['port']) ? ':' . (int) $p['port'] : '');
+            $out[$origin] = $origin;
+        }
+        return array_values($out);
+    }
+
+    /** Orígenes autorizados a incrustar el widget: lista del panel + allowed_origins de config.php. */
+    public static function trusted_origins()
+    {
+        $list = self::parse_origins((string) self::get('trusted_origins'));
+        foreach ((array) cfg('allowed_origins', array()) as $o) {
+            $list = array_merge($list, self::parse_origins($o));
+        }
+        return array_values(array_unique($list));
     }
 
     /** Texto configurable en el idioma del cliente (otros idiomas: traducción cacheada del inglés). */

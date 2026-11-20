@@ -42,8 +42,9 @@ class Api
     /** CORS solo para los endpoints del widget y solo para las webs autorizadas. */
     private static function cors()
     {
-        $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
-        if ($origin && in_array(rtrim($origin, '/'), (array) cfg('allowed_origins', array()), true)) {
+        $origin = strtolower(rtrim(isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '', '/'));
+        // Webs de confianza: lista del panel (Configuración) + allowed_origins de config.php
+        if ($origin && in_array($origin, Settings::trusted_origins(), true)) {
             header('Access-Control-Allow-Origin: ' . $origin);
             header('Vary: Origin');
             header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -61,6 +62,12 @@ class Api
                 if ($method === 'OPTIONS') {
                     http_response_code(204);
                     exit;
+                }
+                // Un navegador en una web que no es de confianza no puede usar el widget (ni siquiera con envíos "simples").
+                $origin = strtolower(rtrim(isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '', '/'));
+                $own = strtolower(rtrim((string) cfg('base_url'), '/'));
+                if ($origin !== '' && $origin !== 'null' && $origin !== $own && !in_array($origin, Settings::trusted_origins(), true)) {
+                    throw new ApiError('Esta web no está autorizada para mostrar el chat', 403);
                 }
             }
             $routes = array(

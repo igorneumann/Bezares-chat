@@ -14,8 +14,9 @@ return array(
     // URL pública del servidor de chat (sin barra final)
     'base_url'   => 'https://chat.bezares.com',
 
-    // Webs autorizadas a mostrar el widget (CORS)
-    'allowed_origins' => array('https://bezares.com', 'https://www.bezares.com'),
+    // Webs autorizadas a mostrar el widget. Normalmente se gestionan en /admin → Configuración →
+    // "Webs de confianza"; las que pongas aquí se suman a esa lista (útil si no tienes acceso al panel).
+    'allowed_origins' => array(),
 
     // Zona horaria para el horario laboral y las estadísticas
     'timezone'   => 'Europe/Madrid',

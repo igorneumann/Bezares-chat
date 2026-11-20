@@ -550,6 +550,11 @@ CSS;
                 return '<div class="info-box"><b>' . self::h($f['label']) . ':</b> ' . self::h($f['help']) . '</div>';
             case 'bool':
                 return '<label class="switch"><input type="checkbox" role="switch" name="' . $k . '" value="1" ' . ((int) $v ? 'checked' : '') . '><span><b>' . self::h($f['label']) . '</b>' . $help . '</span></label>';
+            case 'origins':
+                $extra = array_diff(Settings::trusted_origins(), Settings::parse_origins((string) $v));
+                return '<div class="field"><label for="' . $k . '">' . self::h($f['label']) . '</label>'
+                    . '<textarea id="' . $k . '" name="' . $k . '" rows="5" spellcheck="false" placeholder="https://bezares.com&#10;https://cloud.bezares.com">' . self::h($v) . '</textarea>' . $help
+                    . ($extra ? '<small>También autorizadas desde config.php (allowed_origins): <b>' . self::h(implode(', ', $extra)) . '</b></small>' : '') . '</div>';
             case 'textarea':
                 return '<div class="field"><label for="' . $k . '">' . self::h($f['label']) . '</label><textarea id="' . $k . '" name="' . $k . '">' . self::h($v) . '</textarea>' . $help . '</div>';
             case 'number':
