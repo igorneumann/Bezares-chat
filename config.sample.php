@@ -39,4 +39,15 @@ return array(
     // Si el servidor está detrás de un proxy/CDN (p. ej. Cloudflare), cabecera con la IP real del visitante,
     // por ejemplo 'HTTP_CF_CONNECTING_IP'. Déjalo vacío si no hay proxy (si no, se podría falsificar la IP).
     'client_ip_header' => '',
+    // IPs o rangos (CIDR) de esos proxies. client_ip_header y X-Forwarded-Proto SOLO se aceptan si la
+    // conexión llega desde aquí. Ej. Plesk con nginx delante de Apache en el mismo servidor: array('127.0.0.1', '::1').
+    // Con Cloudflare, pon sus rangos publicados en https://www.cloudflare.com/ips/
+    'trusted_proxies' => array(),
+
+    // País de origen de los chats web (bandera en el cliente de Windows), sin enviar la IP a terceros:
+    //  - cabecera con el país que añade el proxy/CDN (solo se usa si llega desde trusted_proxies);
+    //  - o ruta a una base de datos GeoLite2-Country.mmdb (requiere la extensión maxminddb de PHP).
+    // Si no hay ninguna, se usa la región del idioma del navegador (aproximada).
+    'country_header' => 'HTTP_CF_IPCOUNTRY',
+    'geoip_db'       => '',
 );

@@ -257,11 +257,42 @@ class Auth
         DB::exec('UPDATE conversations SET assigned_to = 0, accepted_at = 0, accepted_by = 0, updated_at = ? WHERE assigned_to = ?', array(now_ms(), (int) $id));
     }
 
+    /** ¿Hay alguna recepcionista activa con el programa abierto (sincronizó en el último minuto)? */
+    public static function reception_online()
+    {
+        static $online = null;
+        if ($online === null) {
+            $online = (int) DB::val("SELECT COUNT(*) FROM agents WHERE role = 'receptionist' AND active = 1 AND last_seen > ?", array(now_ms() - 60000)) > 0;
+        }
+        return $online;
+    }
+
+    /**
+     * Los comerciales ven los chats asignados a ellos y, si no hay ninguna recepcionista conectada,
+     * también los chats nuevos sin asignar (para poder atenderlos).
+     */
     public static function can_see($a, $c)
     {
         if (!$a || !$c) {
             return false;
         }
-        return in_array($a['role'], array('admin', 'receptionist'), true) || (int) $c['assigned_to'] === (int) $a['id'];
+        if (in_array($a['role'], array('admin', 'receptionist'), true) || (int) $c['assigned_to'] === (int) $a['id']) {
+            return true;
+        }
+        return $a['role'] === 'sales' && !(int) $c['assigned_to'] && !self::reception_online();
+    }
+
+    /** ¿Debe sonar este chat (abierto y sin atender) para este agente? */
+    public static function should_ring($a, $c)
+    {
+        $assigned = (int) $c['assigned_to'];
+        if ($assigned) {
+            return $assigned === (int) $a['id']; // transferido o asignado a mí
+        }
+        // Chat nuevo: solo recepción; si no hay ninguna recepcionista conectada, los comerciales.
+        if ($a['role'] === 'receptionist') {
+            return true;
+        }
+        return $a['role'] === 'sales' && !self::reception_online();
     }
 }

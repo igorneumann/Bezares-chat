@@ -53,6 +53,7 @@ class Cron
     public static function cleanup()
     {
         cache_set('cron:cleanup', time());
+        self::housekeeping();
         $months = (int) Settings::get('retention_months');
         if ($months <= 0) {
             return;
@@ -65,11 +66,29 @@ class Cron
             }
             $in = implode(',', array_map('intval', $ids));
             foreach (DB::col("SELECT media_url FROM messages WHERE conversation_id IN ($in) AND media_url <> ''") as $u) {
-                Media::delete_by_url($u);
+                Media::delete_stored($u);
             }
             DB::exec("DELETE FROM messages WHERE conversation_id IN ($in)");
             DB::exec("DELETE FROM conversations WHERE id IN ($in)");
         }
+    }
+
+    /** Limpieza técnica diaria: cachés y límites caducados, temporales huérfanos y migración de adjuntos antiguos. */
+    public static function housekeeping()
+    {
         DB::exec('DELETE FROM kv WHERE expires > 0 AND expires < ?', array(time()));
+        DB::exec('DELETE FROM rate_limits WHERE window_end < ?', array(time() - 60));
+        foreach ((array) glob(BZC_ROOT . '/storage/tmp/dl*') as $f) {
+            if (is_file($f) && filemtime($f) < time() - 3600) {
+                @unlink($f);
+            }
+        }
+        for ($i = 0; $i < 50; $i++) {
+            $before = (int) DB::val('SELECT COUNT(*) FROM messages WHERE media_url LIKE ?', array(rtrim((string) cfg('base_url'), '/') . '/uploads/%'));
+            if (!$before) {
+                break;
+            }
+            Media::migrate_legacy();
+        }
     }
 }

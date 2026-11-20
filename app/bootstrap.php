@@ -31,6 +31,7 @@ require __DIR__ . '/auth.php';
 require __DIR__ . '/stats.php';
 require __DIR__ . '/cron.php';
 require __DIR__ . '/mail.php';
+require __DIR__ . '/geo.php';
 
 /** Error de API con código HTTP. */
 class ApiError extends Exception
@@ -99,23 +100,80 @@ function fill_vars($text, $conv = null)
     return trim(preg_replace('/ {2,}/', ' ', $out));
 }
 
+/** ¿Está la IP dentro de alguno de los rangos (IP o CIDR, IPv4/IPv6)? */
+function ip_in_ranges($ip, array $ranges)
+{
+    $bin = @inet_pton($ip);
+    if ($bin === false) {
+        return false;
+    }
+    foreach ($ranges as $r) {
+        $parts = explode('/', trim((string) $r), 2);
+        $net = @inet_pton($parts[0]);
+        if ($net === false || strlen($net) !== strlen($bin)) {
+            continue;
+        }
+        $bits = isset($parts[1]) ? (int) $parts[1] : strlen($bin) * 8;
+        $bytes = intdiv($bits, 8);
+        if (substr($bin, 0, $bytes) !== substr($net, 0, $bytes)) {
+            continue;
+        }
+        $rem = $bits % 8;
+        if ($rem === 0 || ((ord($bin[$bytes]) ^ ord($net[$bytes])) & (0xFF << (8 - $rem)) & 0xFF) === 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** La petición llega desde un proxy configurado en trusted_proxies (y solo entonces se creen sus cabeceras). */
+function from_trusted_proxy()
+{
+    $remote = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+    return $remote !== '' && ip_in_ranges($remote, (array) cfg('trusted_proxies', array()));
+}
+
 function client_ip()
 {
+    $remote = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
     $h = (string) cfg('client_ip_header', '');
-    if ($h !== '' && !empty($_SERVER[$h])) {
+    // La cabecera con la IP real solo se acepta si la conexión viene de un proxy de confianza;
+    // si no, cualquiera podría enviarla para falsear su IP y saltarse los límites.
+    if ($h !== '' && !empty($_SERVER[$h]) && from_trusted_proxy()) {
         $ip = trim(explode(',', $_SERVER[$h])[0]);
         if (filter_var($ip, FILTER_VALIDATE_IP)) {
             return $ip;
         }
     }
-    return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+    return $remote;
 }
 
 function is_https()
 {
     return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || (isset($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443)
-        || (cfg('client_ip_header') && isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        || (from_trusted_proxy() && isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+}
+
+/** Clave secreta del servidor (firmas de enlaces y retos anti-bot). Se genera una vez y se guarda en la BD. */
+function server_secret()
+{
+    static $s = null;
+    if ($s === null) {
+        $s = DB::val("SELECT v FROM settings WHERE k = 'server_secret'");
+        $s = $s ? json_decode($s, true) : '';
+        if (!$s) {
+            $s = random_token(32);
+            DB::exec("INSERT IGNORE INTO settings (k, v) VALUES ('server_secret', ?)", array(json_encode($s)));
+            $s = json_decode(DB::val("SELECT v FROM settings WHERE k = 'server_secret'"), true);
+        }
+    }
+    return $s;
+}
+
+function sign($data)
+{
+    return hash_hmac('sha256', $data, server_secret());
 }
 
 /** Valor de frame-ancestors: la propia web + webs de confianza de la configuración. */
@@ -159,17 +217,31 @@ function enforce_https()
     }
 }
 
-/** Comprueba sin incrementar si se superó el límite. */
+/*
+ * Límites anti-abuso con contadores ATÓMICOS en MySQL y ventanas fijas:
+ * un único INSERT ... ON DUPLICATE KEY UPDATE incrementa el contador, así que dos peticiones
+ * simultáneas nunca leen el mismo valor (no se puede eludir el límite por concurrencia).
+ */
+
+/** Comprueba sin incrementar si se alcanzó el límite en la ventana actual. */
 function rate_exceeded($key, $max)
 {
-    return (int) cache_get('rl:' . $key) >= $max;
+    $n = DB::val('SELECT n FROM rate_limits WHERE k = ? AND window_end >= ?', array(hash('sha256', $key), time()));
+    return (int) $n >= $max;
 }
 
-/** Incrementa el contador de un límite. */
+/** Incrementa atómicamente el contador y devuelve el valor tras el incremento. */
 function rate_hit($key, $seconds)
 {
-    $k = 'rl:' . $key;
-    cache_set($k, (int) cache_get($k) + 1, $seconds);
+    $now = time();
+    $end = $now + max(1, (int) $seconds);
+    $st = DB::exec(
+        'INSERT INTO rate_limits (k, n, window_end) VALUES (?, 1, ?)
+         ON DUPLICATE KEY UPDATE n = LAST_INSERT_ID(IF(window_end < ?, 1, n + 1)), window_end = IF(window_end < ?, ?, window_end)',
+        array(hash('sha256', $key), $end, $now, $now, $end)
+    );
+    // rowCount 1 = fila nueva (n = 1); 2 = actualizada (LAST_INSERT_ID tiene el nuevo n, por conexión).
+    return $st->rowCount() === 1 ? 1 : (int) DB::val('SELECT LAST_INSERT_ID()');
 }
 
 /** Caché simple con caducidad en la tabla kv (sustituye a los transients). */
@@ -195,12 +267,7 @@ function cache_del($key)
 /** Limitador por IP. Devuelve false si se supera $max en $seconds. */
 function rate_limit($key, $max, $seconds)
 {
-    $k = $key . ':' . md5(client_ip());
-    if (rate_exceeded($k, $max)) {
-        return false;
-    }
-    rate_hit($k, $seconds);
-    return true;
+    return rate_hit($key . ':' . client_ip(), $seconds) <= $max;
 }
 
 function log_error($msg)

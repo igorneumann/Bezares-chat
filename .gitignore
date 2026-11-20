@@ -1,4 +1,5 @@
 config.php
 public/uploads/*
 !public/uploads/.htaccess
+storage/
 *.log

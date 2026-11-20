@@ -113,6 +113,7 @@ class Core
                 'phone'       => (string) ($profile['phone'] ?? ''),
                 'email'       => (string) ($profile['email'] ?? ''),
                 'lang'        => lang_norm($profile['lang'] ?? ''),
+                'country'     => Geo::norm($profile['country'] ?? ''),
                 'page_url'    => mb_substr((string) ($profile['page_url'] ?? ''), 0, 500),
                 'status'      => 'open',
                 'onboarding'  => $onb,
@@ -120,10 +121,7 @@ class Core
                 'updated_at'  => $now,
             ));
             $c = self::conv($id);
-            if ($channel === 'web') {
-                // El widget mostró el saludo localmente; se guarda para que el agente vea toda la conversación.
-                self::insert_message($id, 'bot', Settings::text('welcome', $c['lang'], $c), array('created_at' => $now - 1));
-            }
+            // El primer mensaje del cliente es su consulta; el bot responde después pidiendo el nombre (ver bot_flow).
         } elseif ($c['status'] === 'closed') {
             self::update($c['id'], array('status' => 'open', 'accepted_by' => 0, 'accepted_at' => 0));
             self::note($c['id'], 'Conversación reabierta por el cliente');
@@ -132,9 +130,9 @@ class Core
             self::update($c['id'], array('page_url' => mb_substr($profile['page_url'], 0, 500)));
         }
 
-        // Idioma + traducción (no en los pasos de nombre/correo)
+        // Idioma + traducción: el primer mensaje siempre (es la consulta); luego, no en las respuestas de nombre/correo.
         $o = array('ext_id' => $ext_id, 'media' => $media);
-        if ($text !== '' && !in_array($c['onboarding'], array('name', 'email'), true)) {
+        if ($text !== '' && ($new || !in_array($c['onboarding'], array('name', 'email'), true))) {
             $a = AI::analyze($text);
             $o['lang'] = $a['lang'];
             $o['translated'] = $a['translation'];
@@ -152,7 +150,8 @@ class Core
     /** Captura de nombre/correo + respuesta fuera de horario. */
     private static function bot_flow($c, $text, $new)
     {
-        if ($new && $c['channel'] !== 'web' && $c['onboarding'] !== 'done') {
+        // Primera respuesta a un chat nuevo (web, WhatsApp o Facebook): pedir el nombre (o el correo si ya lo conocemos).
+        if ($new && $c['onboarding'] !== 'done') {
             self::bot_say($c['id'], $c['onboarding'] === 'email' ? 'welcome_known' : 'welcome');
         } elseif ($c['onboarding'] === 'name') {
             $name = trim(preg_replace('/\s+/u', ' ', strip_tags($text)));
@@ -248,7 +247,7 @@ class Core
         foreach (array('id', 'assigned_to', 'accepted_at', 'created_at', 'updated_at', 'last_customer_at', 'first_response_at') as $k) {
             $o[$k] = (int) $c[$k];
         }
-        foreach (array('channel', 'name', 'email', 'phone', 'lang', 'page_url', 'status', 'onboarding', 'last_preview') as $k) {
+        foreach (array('channel', 'name', 'email', 'phone', 'lang', 'country', 'page_url', 'status', 'onboarding', 'last_preview') as $k) {
             $o[$k] = $c[$k];
         }
         $o['window_open'] = Channels::is_window_open($c);
@@ -261,7 +260,7 @@ class Core
             'id'         => (int) $m['id'],
             'direction'  => $m['direction'],
             'body'       => $m['body'],
-            'media_url'  => $m['media_url'],
+            'media_url'  => Media::url($m['media_url']), // enlace firmado que caduca
             'media_type' => $m['media_type'],
             'media_name' => $m['media_name'],
             'created_at' => (int) $m['created_at'],

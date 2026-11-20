@@ -82,7 +82,7 @@ class Channels
                         default:
                             $text = '[' . $type . ']';
                     }
-                    Core::incoming('whatsapp', $from, array('name' => $names[$from] ?? '', 'phone' => '+' . $from), $text, $media, (string) ($m['id'] ?? ''));
+                    Core::incoming('whatsapp', $from, array('name' => $names[$from] ?? '', 'phone' => '+' . $from, 'country' => Geo::from_phone($from)), $text, $media, (string) ($m['id'] ?? ''));
                 }
             }
         }
@@ -163,20 +163,26 @@ class Channels
         if (is_array($c)) {
             return $c;
         }
-        $url = self::graph(rawurlencode($psid)) . '?' . http_build_query(array('fields' => 'first_name,last_name', 'access_token' => Settings::get('fb_page_token')));
-        $d = json_decode(Http::request('GET', $url, array(), null, 10)['body'], true);
+        // El token va en la cabecera Authorization, no en la URL (no queda en registros de intermediarios).
+        $url = self::graph(rawurlencode($psid)) . '?fields=first_name,last_name';
+        $d = json_decode(Http::request('GET', $url, self::fb_auth(), null, 10)['body'], true);
         $out = array('name' => trim(($d['first_name'] ?? '') . ' ' . ($d['last_name'] ?? '')));
         cache_set($k, $out, 86400);
         return $out;
     }
 
+    private static function fb_auth()
+    {
+        return array('Authorization' => 'Bearer ' . Settings::get('fb_page_token'));
+    }
+
     private static function fb_send($psid, array $message)
     {
-        $r = Http::json('POST', self::graph('me/messages') . '?access_token=' . rawurlencode(Settings::get('fb_page_token')), array(
+        $r = Http::json('POST', self::graph('me/messages'), array(
             'recipient'      => array('id' => $psid),
             'messaging_type' => 'RESPONSE',
             'message'        => $message,
-        ));
+        ), self::fb_auth());
         return self::result($r, $r['json']['message_id'] ?? '');
     }
 
@@ -206,7 +212,7 @@ class Channels
             }
             if ($media) {
                 $t = $media['type'] === 'file' ? 'document' : $media['type'];
-                $o = array('link' => $media['url']);
+                $o = array('link' => Media::url($media['url'], Media::TTL_META)); // enlace firmado temporal para que Meta lo descargue
                 if ($text !== '' && in_array($t, array('image', 'video', 'document'), true)) {
                     $o['caption'] = $text;
                     $text = '';
@@ -228,7 +234,7 @@ class Channels
             if ($media) {
                 $r = self::fb_send($conv['external_id'], array('attachment' => array(
                     'type'    => $media['type'],
-                    'payload' => array('url' => $media['url'], 'is_reusable' => false),
+                    'payload' => array('url' => Media::url($media['url'], Media::TTL_META), 'is_reusable' => false),
                 )));
                 if (!$r['ok'] || $text === '') {
                     return $r;

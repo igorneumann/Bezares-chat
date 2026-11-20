@@ -70,6 +70,22 @@ class DB
         self::exec('DELETE FROM `' . $table . '` WHERE ' . $w, array_values($where));
     }
 
+    const SCHEMA_VERSION = '4';
+
+    /** Aplica el esquema si la versión guardada no es la actual (tras actualizar el código). */
+    public static function ensure_schema()
+    {
+        try {
+            $v = self::val("SELECT v FROM settings WHERE k = 'schema_version'");
+        } catch (PDOException $e) {
+            $v = null; // tablas aún no creadas
+        }
+        if ($v !== json_encode(self::SCHEMA_VERSION)) {
+            self::install();
+            self::exec("REPLACE INTO settings (k, v) VALUES ('schema_version', ?)", array(json_encode(self::SCHEMA_VERSION)));
+        }
+    }
+
     /** Crea / actualiza las tablas. */
     public static function install()
     {
@@ -145,6 +161,12 @@ class DB
               k VARCHAR(64) NOT NULL PRIMARY KEY,
               v MEDIUMTEXT NOT NULL
             ) $e",
+            "CREATE TABLE IF NOT EXISTS rate_limits (
+              k CHAR(64) NOT NULL PRIMARY KEY,
+              n INT UNSIGNED NOT NULL DEFAULT 0,
+              window_end INT UNSIGNED NOT NULL,
+              KEY window_end (window_end)
+            ) $e",
             "CREATE TABLE IF NOT EXISTS kv (
               k VARCHAR(190) NOT NULL PRIMARY KEY,
               v MEDIUMTEXT NOT NULL,
@@ -153,6 +175,11 @@ class DB
         );
         foreach ($sql as $q) {
             self::pdo()->exec($q);
+        }
+        // Columnas añadidas en versiones posteriores (instalaciones existentes).
+        $cols = self::col('SHOW COLUMNS FROM conversations');
+        if (!in_array('country', $cols, true)) {
+            self::pdo()->exec("ALTER TABLE conversations ADD country CHAR(2) NOT NULL DEFAULT '' AFTER lang");
         }
     }
 }

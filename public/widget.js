@@ -26,10 +26,12 @@
   var UI = {
     es: { placeholder: 'Escribe un mensaje…', send: 'Enviar', attach: 'Adjuntar imagen, audio, vídeo o documento', record: 'Grabar audio', stop: 'Detener y enviar',
       online: 'Normalmente respondemos en pocos minutos', offline: 'Fuera de horario: te responderemos lo antes posible',
-      error: 'No se pudo enviar. Inténtalo de nuevo.', tooBig: 'El archivo es demasiado grande', close: 'Cerrar', open: 'Abrir chat' },
+      error: 'No se pudo enviar. Inténtalo de nuevo.', tooBig: 'El archivo es demasiado grande', close: 'Cerrar', open: 'Abrir chat',
+      hint: 'Escríbenos tu consulta y te atenderemos enseguida.' },
     en: { placeholder: 'Type a message…', send: 'Send', attach: 'Attach image, audio, video or document', record: 'Record audio', stop: 'Stop and send',
       online: 'We usually reply in a few minutes', offline: 'Outside business hours: we will reply as soon as possible',
-      error: 'Could not send. Please try again.', tooBig: 'The file is too large', close: 'Close', open: 'Open chat' }
+      error: 'Could not send. Please try again.', tooBig: 'The file is too large', close: 'Close', open: 'Open chat',
+      hint: 'Write us your question and we will help you right away.' }
   };
 
   // Hoja de estilos y configuración (color, textos) desde el servidor de chat.
@@ -54,6 +56,7 @@
         color: /^#[0-9a-fA-F]{6}$/.test(cfg.color) ? cfg.color : '#F5333F',
         privacyUrl: /^https:\/\//i.test(cfg.privacyUrl || '') ? cfg.privacyUrl : '',
         maxUpload: cfg.maxUpload,
+        resetMinutes: Math.max(0, parseInt(cfg.resetMinutes, 10) || 0),
         open: cfg.open
       }, T);
     })
@@ -71,8 +74,26 @@
     window.crypto.getRandomValues(a);
     return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
   }
+  /*
+   * Continuidad del chat: al recargar la página se sigue en la misma conversación, pero si el visitante
+   * cerró la página y vuelve pasados C.resetMinutes minutos, empieza un chat nuevo (token nuevo).
+   * bzc_last_active se actualiza mientras la página está abierta y al cerrarla/recargarla.
+   */
   var token = store('bzc_token');
-  if (!token || !/^[a-zA-Z0-9\-]{20,64}$/.test(token)) { token = genToken(); store('bzc_token', token); }
+  var lastActive = parseInt(store('bzc_last_active') || '0', 10);
+  var expired = C.resetMinutes > 0 && lastActive > 0 && (Date.now() - lastActive) > C.resetMinutes * 60000;
+  if (!token || !/^[a-zA-Z0-9\-]{20,64}$/.test(token) || expired) {
+    token = genToken();
+    store('bzc_token', token);
+    store('bzc_has_conv', '0');
+    store('bzc_last_seen', '0');
+    try { sessionStorage.removeItem('bzc_open'); } catch (e) {}
+  }
+  function touch() { store('bzc_last_active', String(Date.now())); }
+  touch();
+  setInterval(touch, 30000);
+  window.addEventListener('pagehide', touch);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) touch(); });
   var hasConv = store('bzc_has_conv') === '1';
   var lastId = 0, seen = {}, unread = 0, isOpen = false, pollTimer = null, sending = false, businessOpen = C.open !== false;
   var lastSeenId = parseInt(store('bzc_last_seen') || '0', 10);
@@ -148,10 +169,13 @@
     el.innerHTML = html;
     return el;
   }
+  // Aviso inicial (no es un mensaje): el bot pedirá el nombre como respuesta al primer mensaje del visitante.
   function renderWelcome() {
     if (msgs.childElementCount) return;
-    msgs.appendChild(bubble({ direction: 'bot', body: T.welcome, created_at: Date.now() }));
-    msgs.firstChild.classList.add('bzc-local');
+    var hint = document.createElement('div');
+    hint.className = 'bzc-hint bzc-local';
+    hint.textContent = T.hint;
+    msgs.appendChild(hint);
   }
   function addMessages(list) {
     var added = false;
@@ -202,6 +226,7 @@
     try { sessionStorage.setItem('bzc_open', v ? '1' : '0'); } catch (e) {}
     if (v) {
       renderWelcome(); updateSub(); markSeen();
+      if (!hasConv) getPow().catch(function () {}); // resuelve el reto anti-bot mientras el visitante escribe
       setTimeout(function () { input.focus(); msgs.scrollTop = msgs.scrollHeight; }, 50);
       poll();
     } else schedule();
@@ -209,20 +234,93 @@
   fab.addEventListener('click', function () { setOpen(!isOpen); });
   $('.bzc-x').addEventListener('click', function () { setOpen(false); });
 
+  /* ---------- Anti-bot: prueba de trabajo para abrir un chat nuevo ---------- */
+  // SHA-256 (devuelve 8 enteros de 32 bits). Basta para el reto; texto ASCII.
+  var K256 = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var W256 = new Array(64);
+  function sha256(str) {
+    var i, t, n = str.length, bytes = [];
+    for (i = 0; i < n; i++) bytes.push(str.charCodeAt(i) & 0xff);
+    bytes.push(0x80);
+    while (bytes.length % 64 !== 56) bytes.push(0);
+    var bits = n * 8;
+    bytes.push(0, 0, 0, 0, (bits >>> 24) & 0xff, (bits >>> 16) & 0xff, (bits >>> 8) & 0xff, bits & 0xff);
+    var H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+    for (var off = 0; off < bytes.length; off += 64) {
+      for (t = 0; t < 16; t++) W256[t] = (bytes[off + 4 * t] << 24) | (bytes[off + 4 * t + 1] << 16) | (bytes[off + 4 * t + 2] << 8) | bytes[off + 4 * t + 3];
+      for (t = 16; t < 64; t++) {
+        var x = W256[t - 15], y = W256[t - 2];
+        var s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+        var s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+        W256[t] = (W256[t - 16] + s0 + W256[t - 7] + s1) | 0;
+      }
+      var a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+      for (t = 0; t < 64; t++) {
+        var S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+        var t1 = (h + S1 + ((e & f) ^ (~e & g)) + K256[t] + W256[t]) | 0;
+        var S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        var t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+        h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+      }
+      H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+      H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+    }
+    return H;
+  }
+  // Busca n tal que SHA-256(reto:n) empiece por "bits" ceros, en bloques para no bloquear la página.
+  var powPromise = null;
+  function solvePow() {
+    return api('GET', '/visitor/challenge').then(function (ch) {
+      var bits = ch.bits, mask = bits >= 32 ? 0xffffffff : (0xffffffff << (32 - bits)) >>> 0, nonce = 0;
+      return new Promise(function (resolve) {
+        (function step() {
+          for (var k = 0; k < 4000; k++, nonce++) {
+            var H = sha256(ch.c + ':' + nonce);
+            if (((H[0] >>> 0) & mask) === 0 && (bits <= 32)) { resolve({ c: ch.c, s: ch.s, n: String(nonce), exp: Date.now() + 8 * 60000 }); return; }
+          }
+          setTimeout(step, 0);
+        })();
+      });
+    });
+  }
+  function getPow() {
+    if (!powPromise) powPromise = solvePow().catch(function (e) { powPromise = null; throw e; });
+    return powPromise.then(function (p) {
+      if (p.exp < Date.now()) { powPromise = null; return getPow(); }
+      return p;
+    });
+  }
+  function usePow() { var p = powPromise; powPromise = null; return p; } // cada reto vale una vez
+
   /* ---------- Envío ---------- */
   function afterSend() {
     if (!hasConv) { hasConv = true; store('bzc_has_conv', '1'); }
+    touch();
     poll();
+  }
+  // Añade la prueba de trabajo solo cuando el mensaje abre un chat nuevo.
+  function withPow(fields) {
+    if (hasConv) return Promise.resolve(fields);
+    return getPow().then(function (p) {
+      usePow();
+      fields.pow_c = p.c; fields.pow_s = p.s; fields.pow_n = p.n;
+      return fields;
+    });
   }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var text = input.value.trim();
     if (!text || sending) return;
     sending = true;
-    api('POST', '/visitor/messages', { token: token, text: text, lang: browserLang, page: location.href })
+    root.classList.add('bzc-busy');
+    withPow({ token: token, text: text, lang: browserLang, locale: navigator.language || '', page: location.href })
+      .then(function (body) { return api('POST', '/visitor/messages', body); })
       .then(function () { input.value = ''; autosize(); afterSend(); })
       .catch(function (ex) { showErr(ex.message || T.error); })
-      .then(function () { sending = false; });
+      .then(function () { sending = false; root.classList.remove('bzc-busy'); });
   });
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit')); }
@@ -232,13 +330,14 @@
 
   function upload(blob, name) {
     if (blob.size > (C.maxUpload || 16) * 1048576) { showErr(T.tooBig); return; }
-    var fd = new FormData();
-    fd.append('file', blob, name);
-    fd.append('token', token);
-    fd.append('lang', browserLang);
-    fd.append('page', location.href);
     root.classList.add('bzc-busy');
-    api('POST', '/visitor/upload', fd, true)
+    withPow({ token: token, lang: browserLang, locale: navigator.language || '', page: location.href })
+      .then(function (fields) {
+        var fd = new FormData();
+        Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });
+        fd.append('file', blob, name);
+        return api('POST', '/visitor/upload', fd, true);
+      })
       .then(afterSend)
       .catch(function (ex) { showErr(ex.message || T.error); })
       .then(function () { root.classList.remove('bzc-busy'); });

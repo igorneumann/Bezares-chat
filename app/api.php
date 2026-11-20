@@ -73,6 +73,7 @@ class Api
             $routes = array(
                 array('GET', '#^/widget/config$#', 'widget_config'),
                 array('GET', '#^/visitor/messages$#', 'visitor_messages'),
+                array('GET', '#^/visitor/challenge$#', 'visitor_challenge'),
                 array('POST', '#^/visitor/messages$#', 'visitor_send'),
                 array('POST', '#^/visitor/upload$#', 'visitor_send'),
                 array('GET', '#^/webhook/(whatsapp|facebook)$#', 'webhook_verify'),
@@ -108,11 +109,72 @@ class Api
         return array(
             'color'     => $s['widget_color'],
             'maxUpload' => (int) $s['max_upload_mb'],
+            'resetMinutes' => (int) $s['widget_reset_minutes'],
             'open'      => Hours::is_open(),
             'privacyUrl' => preg_match('#^https://#i', (string) $s['privacy_url']) ? $s['privacy_url'] : '',
             'es'        => array('title' => $s['widget_title_es'], 'welcome' => fill_vars($s['welcome_es']), 'privacy' => $s['privacy_es']),
             'en'        => array('title' => $s['widget_title_en'], 'welcome' => fill_vars($s['welcome_en']), 'privacy' => $s['privacy_en']),
         );
+    }
+
+    /* ---------------------------------------------------------- anti-bot: prueba de trabajo */
+
+    /*
+     * Para abrir un chat nuevo, el navegador debe resolver un pequeño reto criptográfico (hashcash):
+     * encontrar un número n tal que SHA-256(reto + ":" + n) empiece por POW_BITS bits a cero.
+     * A una persona le cuesta menos de un segundo, en segundo plano mientras abre el chat; a un bot que
+     * quiera abrir miles de chats le supone un coste de cálculo real. Cada reto está firmado, caduca y
+     * solo vale una vez. Complementa (no sustituye) los límites por IP: CORS no es autenticación.
+     */
+    const POW_BITS = 18;
+    const POW_TTL = 600;
+
+    private static function visitor_challenge()
+    {
+        if (!rate_limit('challenge', 30, 60)) {
+            throw new ApiError('Demasiadas solicitudes, espera un momento', 429);
+        }
+        $c = 'v1.' . random_token(12) . '.' . (time() + self::POW_TTL) . '.' . self::POW_BITS;
+        return array('c' => $c, 's' => sign('pow|' . $c), 'bits' => self::POW_BITS);
+    }
+
+    private static function leading_zero_bits($bin)
+    {
+        $bits = 0;
+        for ($i = 0; $i < strlen($bin); $i++) {
+            $b = ord($bin[$i]);
+            if ($b === 0) {
+                $bits += 8;
+                continue;
+            }
+            for ($m = 0x80; ($b & $m) === 0; $m >>= 1) {
+                $bits++;
+            }
+            break;
+        }
+        return $bits;
+    }
+
+    private static function verify_pow()
+    {
+        $c = (string) self::param('pow_c');
+        $s = (string) self::param('pow_s');
+        $n = (string) self::param('pow_n');
+        $fail = new ApiError('Verificación anti-spam no superada. Recarga la página e inténtalo de nuevo.', 403);
+        if (!preg_match('/^v1\.([a-f0-9]{24})\.(\d{10})\.(\d{1,2})$/', $c, $m) || !preg_match('/^\d{1,12}$/', $n)) {
+            throw $fail;
+        }
+        if (!hash_equals(sign('pow|' . $c), $s) || (int) $m[2] < time() || (int) $m[3] < self::POW_BITS) {
+            throw $fail;
+        }
+        if (self::leading_zero_bits(hash('sha256', $c . ':' . $n, true)) < (int) $m[3]) {
+            throw $fail;
+        }
+        // Un solo uso: INSERT IGNORE es atómico (si dos peticiones usan el mismo reto, solo una lo consigue).
+        $st = DB::exec('INSERT IGNORE INTO kv (k, v, expires) VALUES (?, ?, ?)', array('pow:' . $m[1], '1', (int) $m[2] + 60));
+        if ($st->rowCount() !== 1) {
+            throw $fail;
+        }
     }
 
     private static function visitor_token()
@@ -141,24 +203,29 @@ class Api
         if (!rate_limit('msg', 30, 60)) {
             throw new ApiError('Demasiados mensajes, espera un momento', 429);
         }
+        $text = clean_text(self::param('text'));
+        $hasFile = !empty($_FILES['file']);
+        if ($text === '' && !$hasFile) {
+            throw new ApiError('Mensaje vacío');
+        }
+        if (!Core::find('web', $token)) {
+            // Chat nuevo: prueba de trabajo anti-bot y límite de chats nuevos por IP, ANTES de aceptar ningún archivo.
+            self::verify_pow();
+            if (!rate_limit('newconv', 5, 3600)) {
+                throw new ApiError('Demasiadas conversaciones nuevas desde tu conexión. Inténtalo más tarde.', 429);
+            }
+        }
         $media = null;
-        if (!empty($_FILES['file'])) {
+        if ($hasFile) {
             if (!rate_limit('up', 10, 300)) {
                 throw new ApiError('Demasiados archivos, espera unos minutos', 429);
             }
             $media = Media::store_upload($_FILES['file']);
         }
-        $text = clean_text(self::param('text'));
-        if ($text === '' && !$media) {
-            throw new ApiError('Mensaje vacío');
-        }
-        // Límite de chats nuevos por IP: evita inundar a recepción con llamadas falsas.
-        if (!Core::find('web', $token) && !rate_limit('newconv', 5, 3600)) {
-            throw new ApiError('Demasiadas conversaciones nuevas desde tu conexión. Inténtalo más tarde.', 429);
-        }
         $page = (string) self::param('page');
         $id = Core::incoming('web', $token, array(
             'lang'     => lang_norm(self::param('lang')),
+            'country'  => Geo::from_web((string) self::param('locale')),
             'page_url' => preg_match('#^https?://#i', $page) ? $page : '',
         ), $text, $media);
         return array('ok' => true, 'id' => (int) $id);
@@ -220,7 +287,9 @@ class Api
         if (in_array($a['role'], array('admin', 'receptionist'), true)) {
             return '1=1';
         }
-        return $alias . 'assigned_to = ' . (int) $a['id'];
+        // Comercial: sus chats y, si no hay recepción conectada, también los nuevos sin asignar.
+        $own = $alias . 'assigned_to = ' . (int) $a['id'];
+        return Auth::reception_online() ? $own : '(' . $own . ' OR ' . $alias . 'assigned_to = 0)';
     }
 
     /** Sincronización incremental (cada ~2 s). */
@@ -241,9 +310,8 @@ class Api
         }
         // Conversaciones que deben sonar para este agente
         $ringing = array();
-        $reception = in_array($a['role'], array('admin', 'receptionist'), true);
         foreach (DB::rows("SELECT id, assigned_to FROM conversations WHERE status = 'open' AND accepted_at = 0 AND updated_at > ?", array($now - 7 * 86400000)) as $c) {
-            if ((int) $c['assigned_to'] === (int) $a['id'] || (!(int) $c['assigned_to'] && $reception)) {
+            if (Auth::should_ring($a, $c)) {
                 $ringing[] = (int) $c['id'];
             }
         }

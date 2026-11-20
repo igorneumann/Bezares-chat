@@ -20,7 +20,9 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
 
 - Chats desde la **web, WhatsApp y Facebook Messenger**, contestados desde un único programa.
 - Usuarios con roles: **Administrador**, **Recepcionista** (recibe todos los chats y transfiere) y **Comercial** (solo ve los que le transfieren).
-- Al empezar, el bot pide **nombre y correo** (mensajes personalizables) mientras **suena el aviso** en recepción.
+- El visitante escribe su consulta y **la primera respuesta automática le pide el nombre** (y después el correo), en todos los canales. Mientras tanto suena el aviso: **solo en recepción** y, si no hay ninguna recepcionista conectada, en los comerciales, que entonces también ven los chats nuevos sin asignar.
+- Si el visitante **recarga** la página sigue en el mismo chat. Si la **cierra** y vuelve pasados X minutos (configurable), empieza un chat nuevo.
+- **País de origen** de cada chat (bandera en el cliente): por el prefijo en WhatsApp, y en la web por la cabecera del CDN o una base GeoIP local (o, si no hay, la región del idioma del navegador).
 - **Horario laboral** y festivos, con respuesta automática fuera de horario.
 - **Traducción automática con ChatGPT**: los mensajes que no estén en español ni inglés se traducen para el agente, y las respuestas se envían en el idioma del cliente.
 - Envío y recepción de **imágenes, audio, vídeo y documentos** (PDF, Word, Excel, PowerPoint, OpenDocument, RTF, TXT, CSV) por la web, WhatsApp y Facebook.
@@ -31,7 +33,7 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
 
 ## Requisitos
 
-- Hosting con **PHP 7.4 o superior** (extensiones `pdo_mysql`, `curl`, `mbstring`, `json`) y **MySQL 5.7+ / MariaDB 10.3+**.
+- Hosting con **PHP 7.4 o superior** (extensiones `pdo_mysql`, `curl`, `mbstring`, `json` y `zip`) y **MySQL 5.7+ / MariaDB 10.3+**.
 - Apache con `mod_rewrite`. Para Nginx, ver más abajo.
 - Subdominio `chat.bezares.com` con **certificado SSL** (HTTPS es obligatorio).
 
@@ -94,7 +96,7 @@ y añadir `https://chat.bezares.com` a los dominios permitidos de la CSP en esa 
 root /ruta/Bezares-chat/public;
 location / { try_files $uri /index.php$is_args$args; }
 location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass unix:/run/php/php-fpm.sock; }
-location ^~ /uploads/ { location ~ \.(php|phtml|phar|html?|js|svg)$ { deny all; } add_header X-Content-Type-Options nosniff; add_header Content-Security-Policy "default-src 'none'; sandbox"; }
+location ^~ /uploads/ { deny all; }   # adjuntos antiguos: se migran solos a storage/ y se sirven por /media/ con enlace firmado
 ```
 
 ## Estructura
@@ -103,7 +105,8 @@ location ^~ /uploads/ { location ~ \.(php|phtml|phar|html?|js|svg)$ { deny all; 
 config.sample.php   → copiar como config.php (no se sube a git)
 cron.php            → tareas periódicas (solo línea de comandos)
 app/                → lógica (no accesible desde la web)
-public/             → raíz web: index.php (API + panel), widget.js, widget.css, uploads/
+public/             → raíz web: index.php (API, panel y /media/ con enlaces firmados), widget.js, widget.css
+storage/            → adjuntos privados y temporales (fuera de la web; se crea sola)
 ```
 
 ## API (resumen)

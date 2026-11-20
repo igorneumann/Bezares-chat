@@ -21,6 +21,8 @@ class Settings
                 array('k' => 'privacy_url', 'label' => 'URL de la política de privacidad', 'type' => 'text', 'def' => 'https://bezares.com/politica-de-privacidad/', 'help' => 'RGPD: el widget muestra un aviso con este enlace antes de pedir nombre y correo.'),
                 array('k' => 'privacy_es', 'label' => 'Aviso de privacidad (ES)', 'type' => 'text', 'def' => 'Al chatear aceptas nuestra política de privacidad.'),
                 array('k' => 'privacy_en', 'label' => 'Aviso de privacidad (EN)', 'type' => 'text', 'def' => 'By chatting you accept our privacy policy.'),
+                array('k' => 'widget_reset_minutes', 'label' => 'Reiniciar el chat del visitante tras (minutos)', 'type' => 'number', 'def' => 30,
+                    'help' => 'Si el visitante recarga la página, sigue en el mismo chat. Si cierra la página y vuelve pasados estos minutos, empieza un chat nuevo (el anterior se conserva para el equipo). 0 = no reiniciar nunca.'),
                 array('k' => 'trusted_origins', 'label' => 'Webs de confianza (pueden incrustar el chat o el panel)', 'type' => 'origins', 'def' => "https://bezares.com\nhttps://www.bezares.com\nhttps://cloud.bezares.com",
                     'help' => 'Una dirección por línea, con https://. Solo estas webs pueden mostrar el widget y abrir chat.bezares.com dentro de un marco (iframe), por ejemplo en Nextcloud → Sitios externos. En cualquier otra web no aparece. Se guarda solo el dominio (por ejemplo https://cloud.bezares.com).'),
                 array('k' => 'help_embed', 'label' => 'Código para incrustar en otra web', 'type' => 'info', 'def' => '',

@@ -66,3 +66,18 @@ Auditoría del código del 19/11/2026, sobre el servidor, el widget, el plugin y
 - Un mensaje de un cliente podría intentar manipular a la IA de traducción (*prompt injection*). El agente siempre ve también el texto original.
 - El token del visitante vive en el `localStorage` de bezares.com: una vulnerabilidad XSS en WordPress permitiría leer su conversación. Mantén WordPress y sus plugins al día.
 - Se recomienda activar un WAF o límites de peticiones en el hosting (por ejemplo, Cloudflare) para frenar ataques de volumen.
+
+## Segunda auditoría (20/11/2026): correcciones aplicadas
+
+| # | Hallazgo | Corrección |
+|---|---|---|
+| 1 | Descargas que seguían redirecciones sin revalidar | `Http` **nunca sigue redirecciones**. Las descargas de Meta recorren a mano como máximo 3 saltos y en cada uno comprueban dominio de Meta, HTTPS, sin usuario ni puerto, y que **todas las IP resueltas sean públicas** (rechaza rangos privados y reservados). La conexión se fija a la IP validada (`CURLOPT_RESOLVE`) para evitar cambios de DNS entre la comprobación y la descarga, y `Authorization` solo se envía al dominio original. |
+| 2 | Archivos cargados enteros en memoria | El tamaño se comprueba con `$_FILES['size']` y `filesize()` **antes de leer**. Las subidas se mueven con `move_uploaded_file` y las descargas se escriben directamente en disco (`CURLOPT_FILE`) con corte por tamaño. Para validar solo se leen los primeros 64 KB. Ajusta también `upload_max_filesize` y `post_max_size` de PHP al límite de la aplicación. |
+| 3 | Límites no atómicos y API pública sin anti-bot | Contadores **atómicos en MySQL** (`INSERT … ON DUPLICATE KEY UPDATE` con `LAST_INSERT_ID`) y ventanas fijas. Para abrir un chat nuevo el navegador debe resolver una **prueba de trabajo** (hashcash SHA-256 de 18 bits, firmada con HMAC, caducidad de 10 min y un solo uso). A una persona le cuesta menos de 1 s en segundo plano; a un bot que quiera abrir chats masivamente le supone un coste real. CORS no se usa como autenticación. |
+| 4 | Documentos ZIP validados solo por la cabecera | Se abren con `ZipArchive` y se exigen los archivos internos del formato (`word/document.xml`, `xl/workbook.xml`, `ppt/presentation.xml`; `mimetype` y `content.xml` en OpenDocument). Contra **bombas ZIP**: máximo 5.000 entradas, 300 MB descomprimidos y un ratio de compresión de 200:1 para entradas de más de 1 MB. Requiere la extensión `zip` de PHP; sin ella, los documentos Office se rechazan. |
+| 5 | Adjuntos públicos permanentes | Los adjuntos se guardan **fuera de la carpeta pública** (`storage/uploads`) y solo se sirven por `/media/…` con **enlace firmado (HMAC) que caduca**: 24 h para agentes y visitantes (se renueva al cargar los mensajes) y 2 h para que WhatsApp o Messenger descarguen lo que envía un agente. La base de datos guarda solo la ruta relativa. Los adjuntos antiguos de `public/uploads` se migran automáticamente en la tarea diaria. |
+| 6 | Cabeceras de proxy sin verificar | `client_ip_header`, `X-Forwarded-Proto` y la cabecera de país solo se aceptan si la conexión llega desde una IP o rango de `trusted_proxies` (config.php). |
+| 7 | Token de Facebook en la URL | Se envía en la cabecera `Authorization: Bearer`. |
+| 8 | Plugin de WordPress con servidor libre | Solo admite `https://` y dominios permitidos (por defecto `chat.bezares.com`; ampliable con la constante `BZCW_ALLOWED_HOSTS` en wp-config.php). Se comprueba al guardar y al mostrar el widget. |
+
+Otros cambios: el esquema de la base de datos se actualiza solo tras desplegar código nuevo (`schema_version`), y la tarea diaria limpia los límites caducados y los temporales huérfanos.
