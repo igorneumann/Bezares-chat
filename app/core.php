@@ -129,6 +129,10 @@ class Core
         if ($channel === 'web' && !empty($profile['page_url'])) {
             self::update($c['id'], array('page_url' => mb_substr($profile['page_url'], 0, 500)));
         }
+        // Completa el país si aún no se conocía (chats anteriores a esta función o datos que llegan después).
+        if ($c['country'] === '' && !empty($profile['country'])) {
+            self::update($c['id'], array('country' => Geo::norm($profile['country'])));
+        }
 
         // Idioma + traducción: el primer mensaje siempre (es la consulta); luego, no en las respuestas de nombre/correo.
         $o = array('ext_id' => $ext_id, 'media' => $media);

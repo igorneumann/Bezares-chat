@@ -498,26 +498,72 @@ class Media
      * Mueve los adjuntos de versiones anteriores (public/uploads, accesibles sin firma) a storage/uploads
      * y guarda en la BD solo la ruta relativa. Se ejecuta por lotes desde las tareas periódicas.
      */
-    public static function migrate_legacy()
+    /**
+     * Procesa un lote de mensajes con id > $afterId. La BD solo se actualiza si el archivo está de verdad en
+     * storage/uploads (movido o ya presente); si no se puede mover, se registra y se deja como estaba para reintentar.
+     * Mientras tanto el archivo antiguo NO es accesible directamente (public/uploads está bloqueada) y se sigue
+     * sirviendo solo por /media/ con enlace firmado.
+     * @return array{0:int,1:int} [último id procesado, nº de filas del lote]
+     */
+    public static function migrate_legacy($afterId = 0)
     {
         $base = self::legacy_base();
-        $rows = DB::rows('SELECT id, media_url FROM messages WHERE media_url LIKE ? LIMIT 200', array($base . '%'));
+        $rows = DB::rows('SELECT id, media_url FROM messages WHERE id > ? AND media_url LIKE ? ORDER BY id LIMIT 200', array((int) $afterId, $base . '%'));
         if (!$rows) {
-            return;
+            return array((int) $afterId, 0);
         }
         self::ensure_dirs();
+        $last = (int) $afterId;
         foreach ($rows as $r) {
+            $last = (int) $r['id'];
             $rel = self::rel($r['media_url']);
             if (!$rel) {
+                log_error('Migración de adjunto: ruta no reconocida en el mensaje ' . $r['id']);
                 continue;
             }
             $old = self::legacy_dir() . '/' . $rel;
             $new = self::dir() . '/' . $rel;
             if (is_file($old)) {
-                @mkdir(dirname($new), 0750, true);
-                @rename($old, $new);
+                if (!self::move_file($old, $new)) {
+                    log_error('Migración de adjunto: no se pudo mover ' . $rel . ' (se reintentará)');
+                    continue; // la BD sigue apuntando al archivo antiguo
+                }
+            } elseif (!is_file($new)) {
+                log_error('Migración de adjunto: el archivo ' . $rel . ' ya no existe');
+                // No queda ningún archivo que exponer: se normaliza la ruta para no reintentar cada día.
             }
             DB::update('messages', array('media_url' => $rel), array('id' => $r['id']));
         }
+        return array($last, count($rows));
+    }
+
+    /** Mueve un archivo comprobando el resultado (rename y, si falla, copia + verificación + borrado). */
+    private static function move_file($old, $new)
+    {
+        $dir = dirname($new);
+        if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) {
+            return false;
+        }
+        $size = filesize($old);
+        if (is_file($new)) {
+            // Ya estaba copiado en un intento anterior: solo se borra el antiguo si es idéntico en tamaño.
+            return filesize($new) === $size && @unlink($old);
+        }
+        if (@rename($old, $new)) {
+            clearstatcache(true, $new);
+            return is_file($new) && filesize($new) === $size;
+        }
+        if (@copy($old, $new)) {
+            clearstatcache(true, $new);
+            if (filesize($new) === $size) {
+                @chmod($new, 0640);
+                if (!@unlink($old)) {
+                    log_error('Migración de adjunto: copiado pero no se pudo borrar el original ' . $old);
+                }
+                return true;
+            }
+            @unlink($new); // copia incompleta
+        }
+        return false;
     }
 }

@@ -19,10 +19,11 @@ Sistema de chat propio para sustituir a Crisp en bezares.com. Este repositorio c
 ## Funciones
 
 - Chats desde la **web, WhatsApp y Facebook Messenger**, contestados desde un único programa.
-- Usuarios con roles: **Administrador**, **Recepcionista** (recibe todos los chats y transfiere) y **Comercial** (solo ve los que le transfieren).
+- Usuarios con roles: **Administrador**, **Recepcionista** (ve y recibe todos los chats y transfiere) y **Comercial**. Comerciales y administradores solo ven los chats que les transfieren (excepción: si no hay ninguna recepcionista conectada, los comerciales ven y reciben los chats nuevos).
+- **Plantillas** de respuesta para recepción y envío de la **transcripción por correo** desde el cliente de Windows.
 - El visitante escribe su consulta y **la primera respuesta automática le pide el nombre** (y después el correo), en todos los canales. Mientras tanto suena el aviso: **solo en recepción** y, si no hay ninguna recepcionista conectada, en los comerciales, que entonces también ven los chats nuevos sin asignar.
 - Si el visitante **recarga** la página sigue en el mismo chat. Si la **cierra** y vuelve pasados X minutos (configurable), empieza un chat nuevo.
-- **País de origen** de cada chat (bandera en el cliente): por el prefijo en WhatsApp, y en la web por la cabecera del CDN o una base GeoIP local (o, si no hay, la región del idioma del navegador).
+- **País de origen** de cada chat (bandera en el cliente): por el prefijo en WhatsApp; en la web, por la cabecera del CDN o una base GeoIP local si existen, y si no por la **zona horaria del navegador** (sin enviar la IP a nadie).
 - **Horario laboral** y festivos, con respuesta automática fuera de horario.
 - **Traducción automática con ChatGPT**: los mensajes que no estén en español ni inglés se traducen para el agente, y las respuestas se envían en el idioma del cliente.
 - Envío y recepción de **imágenes, audio, vídeo y documentos** (PDF, Word, Excel, PowerPoint, OpenDocument, RTF, TXT, CSV) por la web, WhatsApp y Facebook.

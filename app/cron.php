@@ -83,12 +83,13 @@ class Cron
                 @unlink($f);
             }
         }
-        for ($i = 0; $i < 50; $i++) {
-            $before = (int) DB::val('SELECT COUNT(*) FROM messages WHERE media_url LIKE ?', array(rtrim((string) cfg('base_url'), '/') . '/uploads/%'));
-            if (!$before) {
+        // Migración de adjuntos antiguos por lotes con cursor: los que fallen no bloquean al resto y se reintentan mañana.
+        $cursor = 0;
+        for ($i = 0; $i < 100; $i++) {
+            list($cursor, $n) = Media::migrate_legacy($cursor);
+            if ($n === 0) {
                 break;
             }
-            Media::migrate_legacy();
         }
     }
 }

@@ -70,7 +70,7 @@ class DB
         self::exec('DELETE FROM `' . $table . '` WHERE ' . $w, array_values($where));
     }
 
-    const SCHEMA_VERSION = '4';
+    const SCHEMA_VERSION = '5';
 
     /** Aplica el esquema si la versión guardada no es la actual (tras actualizar el código). */
     public static function ensure_schema()
@@ -160,6 +160,13 @@ class DB
             "CREATE TABLE IF NOT EXISTS settings (
               k VARCHAR(64) NOT NULL PRIMARY KEY,
               v MEDIUMTEXT NOT NULL
+            ) $e",
+            "CREATE TABLE IF NOT EXISTS templates (
+              id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+              title VARCHAR(120) NOT NULL,
+              body TEXT NOT NULL,
+              created_by INT UNSIGNED NOT NULL DEFAULT 0,
+              updated_at BIGINT NOT NULL DEFAULT 0
             ) $e",
             "CREATE TABLE IF NOT EXISTS rate_limits (
               k CHAR(64) NOT NULL PRIMARY KEY,

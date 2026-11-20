@@ -1,23 +1,8 @@
+# Carpeta de adjuntos de versiones anteriores: YA NO se sirve directamente.
+# Los archivos que queden aquí se migran solos a storage/uploads y solo se entregan por /media/ con enlace firmado.
+Require all denied
 Options -Indexes
-# Nunca ejecutar ni servir como página nada que no sea un adjunto
-<FilesMatch "\.(php\d?|phtml|phar|pl|py|cgi|sh|html?|js|svg|htaccess)$">
-  Require all denied
-</FilesMatch>
 <IfModule mod_mime.c>
   RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8
   RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8
-</IfModule>
-<IfModule mod_mime.c>
-  AddType audio/webm .weba
-  AddType audio/ogg .opus .oga
-  AddType audio/mp4 .m4a
-  AddType audio/amr .amr
-</IfModule>
-<IfModule mod_headers.c>
-  Header set X-Content-Type-Options "nosniff"
-  Header set Content-Security-Policy "default-src 'none'; sandbox"
-  # Los documentos se descargan en lugar de abrirse en el navegador
-  <FilesMatch "\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|txt|csv)$">
-    Header set Content-Disposition "attachment"
-  </FilesMatch>
 </IfModule>

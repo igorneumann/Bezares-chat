@@ -86,6 +86,11 @@ class Api
                 array('POST', '#^/conversations/(\d+)/messages$#', 'conv_send'),
                 array('POST', '#^/conversations/(\d+)/accept$#', 'conv_accept'),
                 array('POST', '#^/conversations/(\d+)/transfer$#', 'conv_transfer'),
+                array('POST', '#^/conversations/(\d+)/email$#', 'conv_email'),
+                array('GET', '#^/templates$#', 'templates_list'),
+                array('POST', '#^/templates$#', 'template_save'),
+                array('POST', '#^/templates/(\d+)$#', 'template_save'),
+                array('DELETE', '#^/templates/(\d+)$#', 'template_delete'),
             );
             foreach ($routes as $r) {
                 if ($r[0] === $method && preg_match($r[1], $path, $m)) {
@@ -225,7 +230,7 @@ class Api
         $page = (string) self::param('page');
         $id = Core::incoming('web', $token, array(
             'lang'     => lang_norm(self::param('lang')),
-            'country'  => Geo::from_web((string) self::param('locale')),
+            'country'  => Geo::from_web((string) self::param('locale'), (string) self::param('tz')),
             'page_url' => preg_match('#^https?://#i', $page) ? $page : '',
         ), $text, $media);
         return array('ok' => true, 'id' => (int) $id);
@@ -284,12 +289,13 @@ class Api
 
     private static function visible_sql($a, $alias = '')
     {
-        if (in_array($a['role'], array('admin', 'receptionist'), true)) {
-            return '1=1';
+        if ($a['role'] === 'receptionist') {
+            return '1=1'; // recepción ve todos los chats
         }
-        // Comercial: sus chats y, si no hay recepción conectada, también los nuevos sin asignar.
+        // Administrador y comercial: solo los chats transferidos/asignados a ellos.
+        // Comercial: si no hay recepción conectada, también los nuevos sin asignar (para no dejarlos sin atender).
         $own = $alias . 'assigned_to = ' . (int) $a['id'];
-        return Auth::reception_online() ? $own : '(' . $own . ' OR ' . $alias . 'assigned_to = 0)';
+        return ($a['role'] === 'sales' && !Auth::reception_online()) ? '(' . $own . ' OR ' . $alias . 'assigned_to = 0)' : $own;
     }
 
     /** Sincronización incremental (cada ~2 s). */
@@ -369,5 +375,107 @@ class Api
         }
         Core::transfer($c, $a, $to, (string) self::param('note'));
         return array('conversation' => Core::conv_out(Core::conv($c['id'])));
+    }
+
+    /* ---------------------------------------------------------- enviar la conversación por correo */
+
+    private static function conv_email($id)
+    {
+        list($a, $c) = self::conv_for_agent($id);
+        $to = strtolower(trim((string) self::param('to')));
+        if (!valid_email($to)) {
+            throw new ApiError('Correo de destino no válido');
+        }
+        if (!rate_limit('email:' . $a['id'], 20, 3600)) {
+            throw new ApiError('Has enviado demasiados correos en la última hora. Inténtalo más tarde.', 429);
+        }
+        $rows = DB::rows("SELECT * FROM messages WHERE conversation_id = ? AND direction <> 'system' ORDER BY id LIMIT 2000", array($c['id']));
+        $company = (string) Settings::get('company_name');
+        $tz = tz();
+        $lines = array();
+        foreach ($rows as $m) {
+            $when = (new DateTimeImmutable('@' . intdiv((int) $m['created_at'], 1000)))->setTimezone($tz)->format('d/m/Y H:i');
+            if ($m['direction'] === 'in') {
+                $who = $c['name'] !== '' ? $c['name'] : 'Cliente';
+                $body = (string) $m['body']; // lo que escribió el cliente
+            } elseif ($m['direction'] === 'out') {
+                $who = Auth::first_name($m['agent_id']) . ' (' . $company . ')';
+                $body = $m['body_translated'] ? (string) $m['body_translated'] : (string) $m['body']; // lo que recibió el cliente
+            } else {
+                $who = $company;
+                $body = (string) $m['body'];
+            }
+            $text = '[' . $when . '] ' . $who . ":\n" . ($body !== '' ? $body : '');
+            if ($m['media_url']) {
+                // Enlace firmado con validez de 7 días para que el destinatario pueda abrir los adjuntos.
+                $text .= ($body !== '' ? "\n" : '') . '📎 ' . ($m['media_name'] ?: 'Adjunto') . ': ' . Media::url($m['media_url'], 7 * 86400);
+            }
+            $lines[] = $text;
+        }
+        if (!$lines) {
+            throw new ApiError('La conversación no tiene mensajes');
+        }
+        $start = (new DateTimeImmutable('@' . intdiv((int) $c['created_at'], 1000)))->setTimezone($tz)->format('d/m/Y');
+        $intro = "Hola" . ($c['name'] !== '' ? ' ' . $c['name'] : '') . ",\n\n"
+            . "Te enviamos la transcripción de tu conversación con " . $company . " del " . $start . ".\n"
+            . "Los enlaces a archivos adjuntos caducan en 7 días.\n\n"
+            . str_repeat('-', 50) . "\n\n";
+        $sent = Mailer::send($to, 'Tu conversación con ' . $company . ' (' . $start . ')', $intro . implode("\n\n", $lines) . "\n\n" . str_repeat('-', 50) . "\n" . $company);
+        if (!$sent) {
+            throw new ApiError('No se pudo enviar el correo. Revisa la configuración de correo del servidor (config.php).', 502);
+        }
+        Core::note($c['id'], $a['name'] . ' envió la conversación por correo a ' . $to, $a['id']);
+        return array('ok' => true);
+    }
+
+    /* ---------------------------------------------------------- plantillas (solo recepción) */
+
+    private static function require_receptionist()
+    {
+        $a = Auth::require_agent();
+        if ($a['role'] !== 'receptionist') {
+            throw new ApiError('Las plantillas son solo para recepción', 403);
+        }
+        return $a;
+    }
+
+    private static function template_out($t)
+    {
+        return array('id' => (int) $t['id'], 'title' => $t['title'], 'body' => $t['body'], 'updated_at' => (int) $t['updated_at']);
+    }
+
+    private static function templates_list()
+    {
+        self::require_receptionist();
+        return array('templates' => array_map(array(__CLASS__, 'template_out'), DB::rows('SELECT * FROM templates ORDER BY title LIMIT 500')));
+    }
+
+    private static function template_save($id = null)
+    {
+        $a = self::require_receptionist();
+        $title = clean_line(self::param('title'), 120);
+        $body = clean_text(self::param('body'), 4000);
+        if ($title === '' || $body === '') {
+            throw new ApiError('La plantilla necesita un título y un texto');
+        }
+        if ($id) {
+            if (!DB::val('SELECT id FROM templates WHERE id = ?', array((int) $id))) {
+                throw new ApiError('Plantilla no encontrada', 404);
+            }
+            DB::update('templates', array('title' => $title, 'body' => $body, 'updated_at' => now_ms()), array('id' => (int) $id));
+        } else {
+            if ((int) DB::val('SELECT COUNT(*) FROM templates') >= 500) {
+                throw new ApiError('Se ha alcanzado el máximo de 500 plantillas');
+            }
+            $id = DB::insert('templates', array('title' => $title, 'body' => $body, 'created_by' => (int) $a['id'], 'updated_at' => now_ms()));
+        }
+        return array('template' => self::template_out(DB::row('SELECT * FROM templates WHERE id = ?', array((int) $id))));
+    }
+
+    private static function template_delete($id)
+    {
+        self::require_receptionist();
+        DB::delete('templates', array('id' => (int) $id));
+        return array('ok' => true);
     }
 }

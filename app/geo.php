@@ -46,8 +46,25 @@ class Geo
         return '';
     }
 
-    /** País del visitante web. $locale: idioma del navegador (p. ej. "es-ES"). */
-    public static function from_web($locale = '')
+    /** País de una zona horaria IANA (p. ej. "Europe/Madrid" → ES), con los datos de PHP. */
+    public static function from_timezone($tz)
+    {
+        $tz = (string) $tz;
+        if ($tz === '' || !preg_match('#^[A-Za-z_]+(/[A-Za-z0-9_\-+]+){1,2}$#', $tz)) {
+            return '';
+        }
+        try {
+            $loc = (new DateTimeZone($tz))->getLocation();
+            return self::norm($loc && isset($loc['country_code']) ? $loc['country_code'] : '');
+        } catch (Exception $e) {
+            return '';
+        }
+    }
+
+    /**
+     * País del visitante web. $locales: idiomas del navegador (p. ej. "es-ES,es,en"); $tz: zona horaria del navegador.
+     */
+    public static function from_web($locales = '', $tz = '')
     {
         // 1) Cabecera de país del proxy/CDN, solo si la conexión viene de un proxy de confianza.
         $h = (string) cfg('country_header', 'HTTP_CF_IPCOUNTRY');
@@ -79,9 +96,16 @@ class Geo
                 log_error('GeoIP: ' . $e->getMessage());
             }
         }
-        // 3) Región del idioma del navegador (aproximación: indica el idioma configurado, no la ubicación).
-        if (preg_match('/^[a-z]{2,3}[-_]([A-Za-z]{2})$/', trim((string) $locale), $m)) {
-            return self::norm($m[1]);
+        // 3) Zona horaria del navegador (fiable para el país en la gran mayoría de casos).
+        $cc = self::from_timezone($tz);
+        if ($cc) {
+            return $cc;
+        }
+        // 4) Región del primer idioma del navegador que la indique (p. ej. "es-ES"; "es" sola no sirve).
+        foreach (explode(',', (string) $locales) as $loc) {
+            if (preg_match('/^[a-z]{2,3}[-_]([A-Za-z]{2})$/', trim($loc), $m)) {
+                return self::norm($m[1]);
+            }
         }
         return '';
     }

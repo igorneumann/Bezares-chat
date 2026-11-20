@@ -37,7 +37,7 @@
   // Hoja de estilos y configuración (color, textos) desde el servidor de chat.
   var css = document.createElement('link');
   css.rel = 'stylesheet';
-  css.href = base + '/widget.css?v=1';
+  css.href = base + '/widget.css?v=3';
   document.head.appendChild(css);
 
   fetch(base + '/api/widget/config', { credentials: 'omit' })
@@ -301,6 +301,10 @@
     touch();
     poll();
   }
+  // Zona horaria del navegador (p. ej. "Europe/Madrid"): el servidor deduce el país sin geolocalizar la IP.
+  function tzName() {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; }
+  }
   // Añade la prueba de trabajo solo cuando el mensaje abre un chat nuevo.
   function withPow(fields) {
     if (hasConv) return Promise.resolve(fields);
@@ -316,7 +320,7 @@
     if (!text || sending) return;
     sending = true;
     root.classList.add('bzc-busy');
-    withPow({ token: token, text: text, lang: browserLang, locale: navigator.language || '', page: location.href })
+    withPow({ token: token, text: text, lang: browserLang, locale: (navigator.languages || [navigator.language || '']).join(','), tz: tzName(), page: location.href })
       .then(function (body) { return api('POST', '/visitor/messages', body); })
       .then(function () { input.value = ''; autosize(); afterSend(); })
       .catch(function (ex) { showErr(ex.message || T.error); })
@@ -331,7 +335,7 @@
   function upload(blob, name) {
     if (blob.size > (C.maxUpload || 16) * 1048576) { showErr(T.tooBig); return; }
     root.classList.add('bzc-busy');
-    withPow({ token: token, lang: browserLang, locale: navigator.language || '', page: location.href })
+    withPow({ token: token, lang: browserLang, locale: (navigator.languages || [navigator.language || '']).join(','), tz: tzName(), page: location.href })
       .then(function (fields) {
         var fd = new FormData();
         Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });

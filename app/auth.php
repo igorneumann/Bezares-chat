@@ -276,9 +276,11 @@ class Auth
         if (!$a || !$c) {
             return false;
         }
-        if (in_array($a['role'], array('admin', 'receptionist'), true) || (int) $c['assigned_to'] === (int) $a['id']) {
+        // Recepción ve todos los chats; administradores y comerciales, solo los que les han transferido.
+        if ($a['role'] === 'receptionist' || (int) $c['assigned_to'] === (int) $a['id']) {
             return true;
         }
+        // Excepción: sin ninguna recepcionista conectada, los comerciales ven los chats nuevos para atenderlos.
         return $a['role'] === 'sales' && !(int) $c['assigned_to'] && !self::reception_online();
     }
 
