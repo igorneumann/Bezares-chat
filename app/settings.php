@@ -14,7 +14,7 @@ class Settings
         return array(
             array('group' => 'General y widget', 'fields' => array(
                 array('k' => 'company_name', 'label' => 'Nombre de la empresa', 'type' => 'text', 'def' => 'Bezares', 'help' => 'Se usa en los mensajes con {company}.'),
-                array('k' => 'widget_color', 'label' => 'Color del widget', 'type' => 'color', 'def' => '#0057a8'),
+                array('k' => 'widget_color', 'label' => 'Color del widget', 'type' => 'color', 'def' => '#F5333F'),
                 array('k' => 'widget_title_es', 'label' => 'Título del widget (ES)', 'type' => 'text', 'def' => 'Chatea con nosotros'),
                 array('k' => 'widget_title_en', 'label' => 'Título del widget (EN)', 'type' => 'text', 'def' => 'Chat with us'),
                 array('k' => 'max_upload_mb', 'label' => 'Tamaño máximo de archivo (MB)', 'type' => 'number', 'def' => 16, 'help' => 'Se admiten imágenes, audio, vídeo y documentos (PDF, Word, Excel, PowerPoint, OpenDocument, RTF, TXT, CSV). Límites de WhatsApp: 5 MB imágenes, 16 MB audio/vídeo, 100 MB documentos. Comprueba también upload_max_filesize y post_max_size de PHP.'),
@@ -152,7 +152,7 @@ class Settings
             } elseif ($t === 'number') {
                 $v = max(0, (int) $v);
             } elseif ($t === 'color') {
-                $v = preg_match('/^#[0-9a-fA-F]{6}$/', (string) $v) ? $v : '#0057a8';
+                $v = preg_match('/^#[0-9a-fA-F]{6}$/', (string) $v) ? $v : '#F5333F';
             } elseif ($t === 'hours') {
                 $h = array();
                 for ($d = 0; $d < 7; $d++) {

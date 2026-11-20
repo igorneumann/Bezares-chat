@@ -51,7 +51,7 @@
         api: base + '/api',
         position: positions.indexOf(ds.position) >= 0 ? ds.position : 'bottom-right',
         offset: Math.max(0, Math.min(200, parseInt(ds.offset || '20', 10) || 20)),
-        color: /^#[0-9a-fA-F]{6}$/.test(cfg.color) ? cfg.color : '#0057a8',
+        color: /^#[0-9a-fA-F]{6}$/.test(cfg.color) ? cfg.color : '#F5333F',
         privacyUrl: /^https:\/\//i.test(cfg.privacyUrl || '') ? cfg.privacyUrl : '',
         maxUpload: cfg.maxUpload,
         open: cfg.open
@@ -85,7 +85,7 @@
   root.style.setProperty('--bzc-offset', (C.offset || 20) + 'px');
   root.innerHTML =
     '<div class="bzc-panel" role="dialog" aria-label="' + esc(T.title) + '" hidden>' +
-      '<div class="bzc-head"><div><div class="bzc-title">' + esc(T.title) + '</div><div class="bzc-sub"></div></div>' +
+      '<div class="bzc-head"><span class="bzc-logo">' + svgBz(30) + '</span><div class="bzc-head-txt"><div class="bzc-title">' + esc(T.title) + '</div><div class="bzc-sub"></div></div>' +
       '<button type="button" class="bzc-x" aria-label="' + esc(T.close) + '">&times;</button></div>' +
       '<div class="bzc-msgs" aria-live="polite"></div>' +
       '<div class="bzc-err" hidden></div>' +
@@ -98,7 +98,7 @@
         '<button type="submit" class="bzc-ico bzc-send" title="' + esc(T.send) + '" aria-label="' + esc(T.send) + '">' + svgSend() + '</button>' +
       '</form>' +
     '</div>' +
-    '<button type="button" class="bzc-fab" aria-label="' + esc(T.open) + '">' + svgChat() + '<span class="bzc-badge" hidden>0</span></button>';
+    '<button type="button" class="bzc-fab" aria-label="' + esc(T.open) + '">' + svgBz(36) + '<span class="bzc-badge" hidden>0</span></button>';
   document.body.appendChild(root);
 
   var $ = function (s) { return root.querySelector(s); };
@@ -275,7 +275,19 @@
   });
 
   /* ---------- Iconos ---------- */
-  function svgChat() { return '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M12 3C6.5 3 2 6.6 2 11c0 2.2 1.1 4.2 2.9 5.6L4 21l4.6-2.4c1.1.3 2.2.4 3.4.4 5.5 0 10-3.6 10-8s-4.5-8-10-8z"/></svg>'; }
+  // Icono de Bezares Chat: burbuja con el anagrama BZ recortado (toma el color del texto: blanco sobre el botón).
+  var bzN = 0;
+  function svgBz(size) {
+    var id = 'bzc-bzcut-' + (++bzN);
+    return '<svg viewBox="0 0 256 256" width="' + size + '" height="' + size + '" aria-hidden="true" focusable="false">' +
+      '<defs><mask id="' + id + '" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256"><rect width="256" height="256" fill="#fff"/>' +
+      '<g fill="#000" transform="translate(33 64.05) scale(0.6703)">' +
+      '<polygon points="31.99,97.77 47.8,70.23 15.95,70.17 0,97.74"/>' +
+      '<path d="M170.13,97.87h16.96l-31.79,55.24h128.16l-16.13-27.56h-64.03l32.07-55.62l-65.11,0.12c0,0-4.21,10.27-7.68,13.86C165.93,87.51,170.13,97.87,170.13,97.87"/>' +
+      '<path d="M98.83,42.27h2.81h25.73c5.28,0,14.3,4.39,14.3,13.96c0,7.3-6.61,13.96-15.04,13.96H82.36L98.83,42.27z M127.56,153.69c9.54,0,41.62-9.62,41.62-41.86c0-11.46-4.45-22.18-10.56-27.96c7.68-10.2,10.81-19.72,10.81-28.28c0-24.94-25.58-42.32-40.78-42.32H90.72c0,0-4.12-0.03-5.3,0.36c-2.08,0.69-3.27,2.4-4.49,4.56L5.92,147.62c-1.58,2.71-0.99,6.08,2.83,6.08H127.56z M126.75,125.64H50.42l16.47-27.92h2.81h59.12c3.64,0,12.96,3.45,12.96,14.54C141.79,119.05,135.81,125.64,126.75,125.64"/>' +
+      '</g></mask></defs>' +
+      '<path fill="currentColor" mask="url(#' + id + ')" d="M48 36h160a32 32 0 0 1 32 32v104a32 32 0 0 1-32 32h-86l-46 38v-38H48a32 32 0 0 1-32-32V68a32 32 0 0 1 32-32z"/></svg>';
+  }
   function svgSend() { return '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>'; }
   function svgClip() { return '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M16.5 6.5v10a4.5 4.5 0 0 1-9 0V5a3 3 0 0 1 6 0v10.5a1.5 1.5 0 0 1-3 0V6.5H9v9a3 3 0 0 0 6 0V5a4.5 4.5 0 0 0-9 0v11.5a6 6 0 0 0 12 0v-10z"/></svg>'; }
   function svgMic() { return '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11z"/></svg>'; }

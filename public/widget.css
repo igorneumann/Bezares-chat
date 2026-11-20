@@ -1,4 +1,4 @@
-.bzc-root{--bzc-color:#0057a8;--bzc-offset:20px;position:fixed;z-index:2147483000;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1d2433}
+.bzc-root{--bzc-color:#F5333F;--bzc-offset:20px;position:fixed;z-index:2147483000;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1d2433}
 .bzc-root *{box-sizing:border-box}
 .bzc-bottom-right{right:var(--bzc-offset);bottom:var(--bzc-offset)}
 .bzc-bottom-left{left:var(--bzc-offset);bottom:var(--bzc-offset)}
@@ -57,3 +57,6 @@
 .bzc-privacy a{color:#667085}
 .bzc-doc{display:inline-block;padding:6px 10px;background:rgba(0,0,0,.05);border-radius:8px;text-decoration:none;font-weight:600;word-break:break-all}
 .bzc-me .bzc-doc{background:rgba(255,255,255,.18)}
+.bzc-logo{display:flex;flex:none;margin-right:2px}
+.bzc-head-txt{flex:1;min-width:0}
+.bzc-fab svg{display:block}

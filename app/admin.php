@@ -225,7 +225,7 @@ small,.muted{color:var(--muted);font-size:13px}
 .layout{display:flex;min-height:100vh}
 .side{width:240px;background:linear-gradient(180deg,var(--brand) 0%,var(--brand-d) 100%);color:#fff;display:flex;flex-direction:column;padding:22px 14px;position:sticky;top:0;height:100vh}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;padding:0 8px 22px}
-.logo{width:34px;height:34px;border-radius:50%;background:#fff;color:var(--brand);display:grid;place-items:center;font-size:18px}
+.logo{width:38px;height:38px;display:block;flex:none}
 .nav{display:flex;flex-direction:column;gap:4px}
 .nav .btn{width:100%;justify-content:flex-start;background:transparent;color:#dbe8f7;border:0;padding:11px 14px;font-weight:500}
 .nav .btn:hover{background:rgba(255,255,255,.12);color:#fff}
@@ -311,7 +311,7 @@ td.actions{text-align:right;white-space:nowrap}
 /* Páginas de acceso */
 .auth{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 20% 10%,#dbe8f8 0,transparent 40%),radial-gradient(circle at 90% 90%,#e3eefb 0,transparent 40%),var(--bg)}
 .auth-card{width:100%;max-width:420px;background:#fff;border-radius:18px;box-shadow:0 10px 40px rgba(16,24,40,.12);padding:36px 34px}
-.auth-card .logo{width:52px;height:52px;font-size:26px;background:var(--brand);color:#fff;margin:0 auto 14px}
+.auth-card .logo{width:64px;height:64px;margin:0 auto 12px}
 .auth-card h1{text-align:center;font-size:22px}
 .auth-card .sub{text-align:center;color:var(--muted);margin:6px 0 26px}
 .auth-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:-4px 0 20px;flex-wrap:wrap}
@@ -333,7 +333,7 @@ CSS;
     private static function head($title)
     {
         return '<!doctype html><html lang="es" class="no-js"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            . '<meta name="referrer" content="no-referrer"><title>' . self::h($title) . ' · Bezares Chat</title><style>' . self::css() . '</style>'
+            . '<meta name="referrer" content="no-referrer"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><title>' . self::h($title) . ' · Bezares Chat</title><style>' . self::css() . '</style>'
             . '<script src="/admin.js" defer></script></head>';
     }
 
@@ -347,7 +347,7 @@ CSS;
             $nav .= self::nav_button($l, '/admin/' . $k, 'btn' . ($cur === $k ? ' on' : ''));
         }
         echo self::head($title) . '<body><div class="layout">'
-            . '<aside class="side"><div class="brand"><span class="logo">💬</span>Bezares Chat</div><nav class="nav" aria-label="Menú">' . $nav . '</nav>'
+            . '<aside class="side"><div class="brand"><img class="logo" src="/brand/bezares-chat-icon-dark.svg" alt="" width="38" height="38">Bezares Chat</div><nav class="nav" aria-label="Menú">' . $nav . '</nav>'
             . '<div class="side-foot"><div class="who">' . self::h($me['name']) . '</div><div class="role">Administrador</div>'
             . '<form method="post" action="/admin/logout" class="inline">' . self::csrf_field() . '<button class="btn btn-sm">Cerrar sesión</button></form></div></aside>'
             . '<main class="main"><div class="page-head"><div><h1>' . self::h($title) . '</h1>' . ($subtitle ? '<p>' . self::h($subtitle) . '</p>' : '') . '</div>' . $headActions . '</div>'
@@ -358,7 +358,7 @@ CSS;
     /** Página de acceso (login, recuperar, instalación). */
     private static function auth_page($title, $body, $sub = '')
     {
-        echo self::head($title) . '<body><div class="auth"><div class="auth-card"><div class="logo">💬</div><h1>' . self::h($title) . '</h1>'
+        echo self::head($title) . '<body><div class="auth"><div class="auth-card"><img class="logo" src="/brand/bezares-chat-icon-light.svg" alt="Bezares Chat" width="64" height="64"><h1>' . self::h($title) . '</h1>'
             . '<p class="sub">' . self::h($sub ?: 'Bezares Chat · Administración') . '</p>' . self::flash() . $body . '</div></div></body></html>';
         exit;
     }
