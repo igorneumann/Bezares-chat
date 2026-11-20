@@ -195,7 +195,17 @@ class Auth
 
     public static function logout()
     {
+        $a = self::agent_by_token(self::token());
+        if ($a) {
+            self::set_offline($a['id']);
+        }
         self::revoke_token(self::token());
+    }
+
+    /** Aparece desconectado al instante (no recibe chats nuevos ni transferencias). */
+    public static function set_offline($id)
+    {
+        DB::update('agents', array('last_seen' => 0), array('id' => (int) $id));
     }
 
     public static function save(array $d, $id = 0)

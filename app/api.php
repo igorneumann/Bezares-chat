@@ -81,6 +81,7 @@ class Api
                 array('POST', '#^/auth/login$#', 'login'),
                 array('POST', '#^/auth/logout$#', 'logout'),
                 array('GET', '#^/me$#', 'me'),
+                array('POST', '#^/me/offline$#', 'me_offline'),
                 array('GET', '#^/sync$#', 'sync'),
                 array('GET', '#^/conversations/(\d+)/messages$#', 'conv_messages'),
                 array('POST', '#^/conversations/(\d+)/messages$#', 'conv_send'),
@@ -282,6 +283,14 @@ class Api
     private static function logout()
     {
         Auth::logout();
+        return array('ok' => true);
+    }
+
+    /** El agente se desconecta: deja de contar como conectado (avisos y transferencias van a otros). */
+    private static function me_offline()
+    {
+        $a = Auth::require_agent();
+        Auth::set_offline($a['id']);
         return array('ok' => true);
     }
 
