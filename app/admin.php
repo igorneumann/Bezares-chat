@@ -495,6 +495,24 @@ CSS;
     private static function settings($method, $me)
     {
         $schema = Settings::schema();
+        if ($method === 'POST' && ($_POST['action'] ?? '') === 'testmail') {
+            // Diagnóstico: envía un correo de prueba y muestra el error exacto del servidor de correo si falla.
+            self::check_csrf();
+            $to = strtolower(trim((string) ($_POST['test_to'] ?? '')));
+            if (!valid_email($to)) {
+                self::flash('Escribe un correo de destino válido para la prueba.', true);
+            } elseif (!rate_limit('testmail:' . $me['id'], 10, 3600)) {
+                self::flash('Demasiadas pruebas en la última hora.', true);
+            } else {
+                $ok = Mailer::send($to, 'Prueba de correo de Bezares Chat', "Este es un correo de prueba enviado desde el panel de Bezares Chat (" . cfg('base_url') . ").\n\nSi lo has recibido en la bandeja de entrada, el envío funciona. Si ha llegado a spam o cuarentena, revisa la configuración SPF/DMARC del dominio remitente.\n\nEnviado por: " . $me['name']);
+                $msg = $ok
+                    ? 'El servidor de correo aceptó la prueba para ' . $to . ' (vía ' . Mailer::transport() . '). Si no llega en unos minutos, revisa spam o la cuarentena de Office 365.'
+                    : 'ERROR al enviar a ' . $to . ' (vía ' . Mailer::transport() . '): ' . (Mailer::$lastError ?: 'sin detalle');
+                log_error('Prueba de correo: ' . $msg);
+                self::flash($msg, !$ok);
+            }
+            self::redirect('/admin/settings?tab=' . max(0, (int) ($_POST['tab'] ?? 0)));
+        }
         if ($method === 'POST') {
             self::check_csrf();
             $tab = max(0, min(count($schema) - 1, (int) ($_POST['tab'] ?? 0)));
@@ -538,6 +556,14 @@ CSS;
         $html = $tabs . '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="tab" value="' . $tab . '">'
             . '<h2>' . self::h($schema[$tab]['group']) . '</h2>' . $fields
             . '<div class="savebar">' . '<button type="reset" class="btn btn-secondary">Deshacer cambios</button><button type="submit" class="btn btn-primary">💾 Guardar</button></div></form>';
+        // Diagnóstico del correo (recuperación de contraseñas y envío de conversaciones).
+        $from = (string) cfg('mail_from', '');
+        $html .= '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="testmail"><input type="hidden" name="tab" value="' . $tab . '">'
+            . '<h2>✉ Probar el envío de correo</h2>'
+            . '<div class="info-box">Remitente: <b>' . self::h($from ?: '(sin configurar)') . '</b> · Envío: <b>' . self::h(Mailer::transport()) . '</b><br>'
+            . 'Se configura en <code>config.php</code> (mail_from y smtp_*). Si el remitente es de un dominio con Office 365 (como @bezares.com), usa el SMTP de Office 365 (<code>smtp.office365.com</code>, puerto 587, tls) con un buzón real: si no, SPF/DMARC hará que los correos acaben en cuarentena.</div>'
+            . '<div class="filters"><div class="field" style="flex:1;min-width:240px"><label for="test_to">Enviar una prueba a</label><input id="test_to" type="email" name="test_to" required value="' . self::h($me['email']) . '"></div>'
+            . '<button class="btn btn-secondary">Enviar prueba</button></div></form>';
         self::layout('Configuración', 'Mensajes automáticos, horario, traducción y canales de WhatsApp/Facebook', $html, $me);
     }
 

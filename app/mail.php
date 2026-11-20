@@ -4,9 +4,22 @@
  */
 class Mailer
 {
+    /** Último error de envío (para el diagnóstico del panel y el registro). */
+    public static $lastError = '';
+
+    /** Cómo se envía: "SMTP host:puerto (tls)" o "mail() de PHP". */
+    public static function transport()
+    {
+        return cfg('smtp_host')
+            ? 'SMTP ' . cfg('smtp_host') . ':' . (int) cfg('smtp_port', 587) . ' (' . (cfg('smtp_secure', 'tls') ?: 'sin cifrar') . ')'
+            : 'mail() de PHP (sin SMTP)';
+    }
+
     public static function send($to, $subject, $text)
     {
+        self::$lastError = '';
         if (!valid_email($to)) {
+            self::$lastError = 'Destinatario no válido';
             return false;
         }
         $from = (string) cfg('mail_from', 'no-reply@' . (parse_url(cfg('base_url'), PHP_URL_HOST) ?: 'localhost'));
@@ -29,8 +42,14 @@ class Mailer
             foreach ($headers as $k => $v) {
                 $h .= $k . ': ' . $v . "\r\n";
             }
-            return mail($to, $subjectEnc, $body, $h, '-f' . $from);
+            $ok = mail($to, $subjectEnc, $body, $h, '-f' . $from);
+            if (!$ok) {
+                $err = error_get_last();
+                self::$lastError = 'mail() devolvió error' . ($err ? ': ' . $err['message'] : '');
+            }
+            return $ok;
         } catch (Exception $e) {
+            self::$lastError = $e->getMessage();
             log_error('Correo no enviado: ' . $e->getMessage());
             return false;
         }

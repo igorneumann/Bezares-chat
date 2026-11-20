@@ -111,13 +111,20 @@ class Auth
         if (!rate_limit('forgot', 5, 3600)) {
             throw new ApiError('Demasiadas solicitudes. Inténtalo dentro de una hora.', 429);
         }
+        // Al usuario siempre se le responde lo mismo; el resultado real queda en el registro del servidor.
         $kAcc = 'forgot:acc:' . md5($email);
-        if (!valid_email($email) || rate_exceeded($kAcc, 3)) {
+        if (!valid_email($email)) {
+            log_error('Recuperación de contraseña: correo no válido');
+            return;
+        }
+        if (rate_exceeded($kAcc, 3)) {
+            log_error('Recuperación de contraseña para ' . $email . ': NO enviado, límite de 3 solicitudes por hora alcanzado');
             return;
         }
         rate_hit($kAcc, 3600);
         $a = DB::row('SELECT * FROM agents WHERE email = ? AND active = 1', array($email));
         if (!$a) {
+            log_error('Recuperación de contraseña para ' . $email . ': NO enviado, no hay ningún usuario activo con ese correo');
             return;
         }
         $token = random_token();
@@ -129,8 +136,10 @@ class Auth
             . $link . "\n\n"
             . "Si no lo has pedido tú, ignora este mensaje: tu contraseña actual sigue siendo válida.\n\n"
             . "Bezares Chat";
-        if (!Mailer::send($a['email'], 'Recuperar contraseña de Bezares Chat', $text)) {
-            log_error('No se pudo enviar el correo de recuperación a ' . $a['email']);
+        if (Mailer::send($a['email'], 'Recuperar contraseña de Bezares Chat', $text)) {
+            log_error('Recuperación de contraseña para ' . $a['email'] . ': entregado al servidor de correo (' . Mailer::transport() . '). Si no llega, revisa spam/cuarentena.');
+        } else {
+            log_error('Recuperación de contraseña para ' . $a['email'] . ': ERROR al enviar (' . Mailer::transport() . '): ' . Mailer::$lastError);
         }
     }
 
