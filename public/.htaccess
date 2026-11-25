@@ -1,0 +1,27 @@
+Options -Indexes
+RewriteEngine On
+
+# Algunos hostings eliminan la cabecera Authorization: la conservamos
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Archivos reales (widget.js, uploads...) se sirven directamente; el resto va a index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [L,QSA]
+
+<IfModule mod_headers.c>
+  # Algunos paneles de hosting añaden X-Frame-Options por defecto: lo quitamos para que se aplique
+  # la lista de "webs de confianza" (CSP frame-ancestors que envía la aplicación).
+  Header always unset X-Frame-Options
+  <FilesMatch "\.(js|css)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Cache-Control "public, max-age=3600"
+  </FilesMatch>
+</IfModule>
+
+# Programa de Windows y su version firmada: sin cache, para que las actualizaciones se vean al momento.
+<IfModule mod_headers.c>
+  <FilesMatch "^(version\.json|BezaresChat\.exe)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

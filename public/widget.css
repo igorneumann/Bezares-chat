@@ -1,0 +1,80 @@
+.bzc-root{--bzc-color:#F5333F;--bzc-offset:20px;position:fixed;z-index:2147483000;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1d2433}
+.bzc-root *{box-sizing:border-box}
+.bzc-bottom-right{right:var(--bzc-offset);bottom:var(--bzc-offset)}
+.bzc-bottom-left{left:var(--bzc-offset);bottom:var(--bzc-offset)}
+.bzc-top-right{right:var(--bzc-offset);top:var(--bzc-offset)}
+.bzc-top-left{left:var(--bzc-offset);top:var(--bzc-offset)}
+
+.bzc-fab{width:60px;height:60px;border-radius:50%;border:0;background:var(--bzc-color);color:#fff;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;position:relative;transition:transform .15s}
+.bzc-fab:hover{transform:scale(1.06)}
+.bzc-fab:focus-visible{outline:3px solid #fff;outline-offset:2px;box-shadow:0 0 0 6px var(--bzc-color)}
+.bzc-badge{position:absolute;top:-2px;right:-2px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:#e5252a;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+.bzc-badge[hidden]{display:none}
+.bzc-bottom-left .bzc-badge,.bzc-top-left .bzc-badge{right:auto;left:-2px}
+
+.bzc-panel{position:absolute;width:370px;max-width:calc(100vw - 2 * var(--bzc-offset));height:540px;max-height:calc(100vh - 110px);background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden}
+.bzc-panel[hidden]{display:none}
+.bzc-bottom-right .bzc-panel{right:0;bottom:76px}
+.bzc-bottom-left .bzc-panel{left:0;bottom:76px}
+.bzc-top-right .bzc-panel{right:0;top:76px}
+.bzc-top-left .bzc-panel{left:0;top:76px}
+
+.bzc-head{background:var(--bzc-color);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bzc-title{font-weight:700;font-size:16px}
+.bzc-sub{font-size:12px;opacity:.85;margin-top:2px}
+.bzc-x{background:none;border:0;color:#fff;font-size:28px;line-height:1;cursor:pointer;padding:0 4px}
+
+.bzc-msgs{flex:1;overflow-y:auto;padding:14px;background:#f4f6f9;display:flex;flex-direction:column;gap:8px}
+.bzc-msg{max-width:82%;padding:8px 11px;border-radius:12px;word-wrap:break-word;overflow-wrap:anywhere;position:relative}
+.bzc-them{align-self:flex-start;background:#fff;border:1px solid #e3e7ee;border-bottom-left-radius:4px}
+.bzc-me{align-self:flex-end;background:var(--bzc-color);color:#fff;border-bottom-right-radius:4px}
+.bzc-me a{color:#fff}
+.bzc-bot{background:#eef3fb}
+.bzc-who{font-size:11px;font-weight:700;opacity:.7;margin-bottom:2px}
+.bzc-time{font-size:10px;opacity:.6;text-align:right;margin-top:3px}
+.bzc-msg img{max-width:100%;border-radius:8px;display:block}
+.bzc-msg video{max-width:100%;border-radius:8px;display:block}
+.bzc-msg audio{width:230px;max-width:100%;display:block}
+
+.bzc-err{background:#fdecec;color:#a11;padding:6px 12px;font-size:12px}
+.bzc-err[hidden]{display:none}
+.bzc-form{display:flex;align-items:flex-end;gap:4px;padding:8px;border-top:1px solid #e3e7ee;background:#fff}
+.bzc-input{flex:1;resize:none;border:1px solid #d5dbe5;border-radius:18px;padding:8px 12px;font:inherit;max-height:110px;outline:none;color:inherit;background:#fff}
+.bzc-input:focus{border-color:var(--bzc-color)}
+.bzc-ico{width:36px;height:36px;border:0;border-radius:50%;background:none;color:#5b6577;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none}
+.bzc-ico:hover{background:#f0f2f6}
+.bzc-ico[hidden]{display:none}
+.bzc-send{color:var(--bzc-color)}
+.bzc-emo[aria-expanded=true]{color:var(--bzc-color);background:#f0f2f6}
+.bzc-emojis{max-height:190px;overflow-y:auto;padding:6px 8px;border-top:1px solid #e3e7ee;background:#fff;flex:none;overscroll-behavior:contain}
+.bzc-emojis[hidden]{display:none}
+.bzc-emo-t{font-size:11px;color:#667085;padding:2px 4px}
+.bzc-emo-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid #eef1f5}
+.bzc-emo-g:last-child{border-bottom:0;margin-bottom:0}
+.bzc-root .bzc-e{display:block;width:100%;min-width:0;height:38px;margin:0;padding:0;border:0;border-radius:8px;background:none;box-shadow:none;color:inherit;cursor:pointer;font:22px/38px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;text-align:center;letter-spacing:0}
+.bzc-root .bzc-e:hover{background:#f0f2f6}
+.bzc-root .bzc-e:focus-visible{outline:2px solid var(--bzc-color);outline-offset:-2px}
+.bzc-recording .bzc-mic{background:#e5252a;color:#fff;animation:bzc-pulse 1s infinite}
+.bzc-busy .bzc-form{opacity:.6;pointer-events:none}
+@keyframes bzc-pulse{50%{opacity:.6}}
+
+@media (max-width:480px){
+  .bzc-open .bzc-panel{position:fixed;inset:0;width:100%;max-width:none;height:100%;max-height:none;border-radius:0}
+  .bzc-open .bzc-fab{display:none}
+}
+.bzc-privacy{font-size:11px;color:#667085;text-align:center;padding:4px 10px;background:#fff;border-top:1px solid #e3e7ee}
+.bzc-privacy a{color:#667085}
+.bzc-doc{display:inline-block;padding:6px 10px;background:rgba(0,0,0,.05);border-radius:8px;text-decoration:none;font-weight:600;word-break:break-all}
+.bzc-me .bzc-doc{background:rgba(255,255,255,.18)}
+.bzc-logo{display:flex;flex:none;margin-right:2px}
+.bzc-head-txt{flex:1;min-width:0}
+.bzc-fab svg{display:block}
+.bzc-hint{color:#667085;font-size:13px;text-align:center;padding:24px 12px}
+.bzc-typing{display:flex;gap:5px;align-items:center;padding:12px 14px}
+.bzc-typing span{width:7px;height:7px;border-radius:50%;background:#8a94a6;animation:bzc-jump 1.2s infinite ease-in-out}
+.bzc-typing span:nth-child(2){animation-delay:.16s}
+.bzc-typing span:nth-child(3){animation-delay:.32s}
+@keyframes bzc-jump{0%,45%,100%{transform:none}20%{transform:translateY(-6px);background:#5b6577}}
+@media (prefers-reduced-motion:reduce){.bzc-typing span{animation:bzc-pulse 1.2s infinite}}
+.bzc-status{position:absolute;right:1px;bottom:1px;width:15px;height:15px;border-radius:50%;background:#c62828;border:2.5px solid #fff;box-sizing:border-box}
+.bzc-online .bzc-status{background:#22a34a}

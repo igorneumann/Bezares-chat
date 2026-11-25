@@ -1,0 +1,8 @@
+# Carpeta de adjuntos de versiones anteriores: YA NO se sirve directamente.
+# Los archivos que queden aquí se migran solos a storage/uploads y solo se entregan por /media/ con enlace firmado.
+Require all denied
+Options -Indexes
+<IfModule mod_mime.c>
+  RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8
+  RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8
+</IfModule>
