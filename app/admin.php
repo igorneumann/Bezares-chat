@@ -2550,8 +2550,11 @@ CSS;
         };
         $periods = array('month' => 'Mes pasado', 'this' => 'Este mes', '7' => 'Últimos 7 días', '30' => 'Últimos 30 días', '90' => 'Últimos 90 días', 'year' => 'Este año', 'custom' => 'Personalizado…');
         $compares = array('prev' => 'Periodo anterior', 'yoy' => 'Mismo periodo del año anterior', 'custom' => 'Personalizado…', 'none' => 'Sin comparar');
-        // Por defecto: último mes completo comparado con el anterior. (Enlaces antiguos con from/to → personalizado.)
-        $p = $sel('p', $periods, isset($_GET['from']) ? 'custom' : 'month');
+        // Por defecto: este mes comparado con el periodo anterior. (Enlaces antiguos con from/to → personalizado.)
+        $p = $sel('p', $periods, isset($_GET['from']) ? 'custom' : 'this');
+        if ($p === 'custom' && !(self::get_date('from') && self::get_date('to'))) {
+            $p = 'this'; // personalizado sin fechas válidas → este mes
+        }
         $cm = $sel('c', $compares, 'prev');
 
         if ($p === 'custom' && self::get_date('from') && self::get_date('to')) {
@@ -2567,7 +2570,6 @@ CSS;
             $from = $now->modify('-' . ((int) $p - 1) . ' days');
             $to = $now;
         } else {
-            $p = $p === 'custom' ? 'month' : $p; // personalizado sin fechas válidas → mes pasado
             $from = $now->modify('first day of previous month');
             $to = $from->modify('last day of this month');
         }
