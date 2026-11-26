@@ -289,6 +289,12 @@ class Core
         return $msg;
     }
 
+    /** ¿Lleva emojis? (pictogramas, banderas, símbolos de emoji, selector de variante y unión de emojis) */
+    public static function has_emoji($text)
+    {
+        return preg_match('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}\x{2300}-\x{23FF}\x{2190}-\x{21FF}\x{1F1E6}-\x{1F1FF}\x{FE0F}\x{200D}\x{20E3}\x{3030}\x{303D}\x{3297}\x{3299}\x{E0020}-\x{E007F}]/u', (string) $text) === 1;
+    }
+
     /** Primer correo válido que aparezca en el texto, o ''. */
     public static function find_email($text)
     {
@@ -346,6 +352,9 @@ class Core
         if ($new && $c['onboarding'] !== 'done' && !$done) {
             // Primera respuesta a un chat nuevo (web, WhatsApp o Facebook): pedir el nombre (o el correo si ya lo conocemos).
             self::bot_say($c['id'], $c['onboarding'] === 'email' ? 'welcome_known' : 'welcome');
+        } elseif ($c['onboarding'] === 'name' && self::has_emoji(self::parse_name($text, $email))) {
+            self::bot_say($c['id'], 'name_emoji'); // no se guarda: se le vuelve a preguntar el nombre
+            return;
         } elseif ($c['onboarding'] === 'name') {
             $name = self::parse_name($text, $email);
             if ($name !== '') {

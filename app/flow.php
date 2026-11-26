@@ -977,6 +977,14 @@ class Flow
             }
             return;
         }
+        if ($x['kind'] === 'name' && Core::has_emoji(Core::parse_name($text, $email))) {
+            $ago = now_ms() - (int) DB::val("SELECT MAX(created_at) FROM messages WHERE conversation_id = ? AND direction = 'bot'", array($id));
+            if ($ago >= Core::EMAIL_BURST_MS || (int) $c['onboarding_tries'] === 0) { // varios mensajes seguidos: se avisa una sola vez
+                Core::update($id, array('onboarding_tries' => (int) $c['onboarding_tries'] + 1));
+                Core::bot_say($id, 'name_emoji'); // no se guarda: se le vuelve a preguntar el nombre
+            }
+            return;
+        }
         list($ok, $value, $port) = self::valid($x, $text, $email);
         if (!$ok) {
             $tries = (int) $c['onboarding_tries'];
