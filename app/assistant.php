@@ -831,7 +831,7 @@ class Assistant
     /** Primera cifra de tres o más dígitos (precio, dirección, código postal, referencia…) que no está en los recursos, o ''. */
     public static function unknown_number($answer, $source)
     {
-        // Cifras sin separadores («+52 81 1287 0090» = 528112870090), sin juntar las que están en palabras o líneas distintas.
+        // Cifras sin separadores («+52 55 0000 0000» = 525500000000), sin juntar las que están en palabras o líneas distintas.
         $digits = preg_replace('/[^0-9]+/', ' ', (string) preg_replace('/[^0-9\p{L}\n]+/u', '', $source));
         preg_match_all('/\d(?:[\d]|[ .,\-](?=\d))*/', $answer, $m);
         foreach ($m[0] as $x) {

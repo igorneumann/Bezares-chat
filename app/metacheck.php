@@ -167,7 +167,7 @@ class MetaCheck
         if ($waba !== '' && !in_array($waba, array_map('strval', $check), true)) {
             $check[] = $waba;
         }
-        $assign = 'En business.facebook.com (cartera Bezares SA, ID 000000000000000) → Usuarios del sistema → Asignar activos: marca la cuenta de WhatsApp' . ($waba !== '' ? ' ' . $waba : '') . ' con control total y la app. Después genera un token nuevo.';
+        $assign = 'En business.facebook.com (cartera de la empresa) → Usuarios del sistema → Asignar activos: marca la cuenta de WhatsApp' . ($waba !== '' ? ' ' . $waba : '') . ' con control total y la app. Después genera un token nuevo.';
         $names = array();
         $reach = array();
         foreach ($check as $w) {
