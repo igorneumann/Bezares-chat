@@ -93,7 +93,14 @@ class Admin
     {
         session_regenerate_id(true);
         $_SESSION['admin_id'] = (int) $agent['id'];
+        $_SESSION['pw'] = self::pass_mark($agent);
         $_SESSION['last'] = time();
+    }
+
+    /** Huella de la contraseña: si cambia (restablecer, página Usuarios), las sesiones del panel abiertas con la anterior dejan de valer. */
+    private static function pass_mark($agent)
+    {
+        return hash('sha256', 'bzc-admin-session|' . (string) $agent['pass_hash']);
     }
 
     private static function me()
@@ -102,6 +109,11 @@ class Admin
             return self::$me ?: null;
         }
         $a = !empty($_SESSION['admin_id']) ? Auth::agent($_SESSION['admin_id']) : null;
+        if ($a && !hash_equals(self::pass_mark($a), (string) ($_SESSION['pw'] ?? ''))) {
+            $_SESSION = array(); // la contraseña ha cambiado desde que se abrió esta sesión
+            session_regenerate_id(true);
+            $a = null;
+        }
         // Sesión recordada: cookie con token de un solo agente (se revoca al cambiar la contraseña).
         if (!$a && !empty($_COOKIE[self::REMEMBER_COOKIE])) {
             $a = Auth::agent_by_token($_COOKIE[self::REMEMBER_COOKIE]);
@@ -2408,6 +2420,9 @@ CSS;
                     throw new ApiError('No puedes quitarte el acceso al panel (elige un rol con «Panel de administración») ni desactivarte');
                 }
                 Auth::save($d, $id);
+                if ($id === (int) $me['id'] && $d['password'] !== '') {
+                    self::start_admin_session(Auth::agent($id)); // quien cambia su propia contraseña sigue dentro
+                }
                 self::flash($id ? 'Usuario guardado' : 'Usuario creado');
                 self::redirect('/admin/users');
             } catch (ApiError $e) {

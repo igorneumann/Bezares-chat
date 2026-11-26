@@ -127,7 +127,11 @@ class Signup
             'signup_token' => hash('sha256', $token), 'signup_expires' => time() + self::CONFIRM_TTL,
         );
         if ($old) {
-            DB::update('agents', $f, array('id' => (int) $old['id'], 'signup' => 'unconfirmed'));
+            // Ya hay un alta sin confirmar con ese correo: solo se reenvía la confirmación. El nombre, el rol y la contraseña no
+            // cambian, porque quien envía el formulario puede no ser el dueño del buzón (bastaría con tener el enlace de alta).
+            $name = (string) $old['name'];
+            $role = isset($roles[$old['role']]) ? (string) $old['role'] : $role;
+            DB::update('agents', array('signup_token' => $f['signup_token'], 'signup_expires' => $f['signup_expires']), array('id' => (int) $old['id'], 'signup' => 'unconfirmed'));
         } else {
             if ((int) DB::val("SELECT COUNT(*) FROM agents WHERE signup = 'unconfirmed'") >= self::MAX_UNCONFIRMED) {
                 throw new ApiError('Hay demasiadas altas sin confirmar. Avisa al administrador.', 429);
@@ -135,7 +139,7 @@ class Signup
             DB::insert('agents', $f + array('email' => $email, 'created_at' => now_ms()));
         }
         $text = 'Hola ' . $name . ",\n\n"
-            . 'Alguien ha pedido una cuenta de Bezares Chat con este correo (rol: ' . $roles[$role] . ").\n"
+            . 'Alguien ha pedido una cuenta de Bezares Chat con este correo (rol: ' . ($roles[$role] ?? $role) . ").\n"
             . "Si has sido tú, confirma tu correo en este enlace (válido durante 24 horas):\n\n"
             . rtrim((string) cfg('base_url'), '/') . '/admin/confirmar?clave=' . $token . "\n\n"
             . "Después, un administrador tiene que habilitar la cuenta.\n\n"
