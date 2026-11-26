@@ -501,7 +501,11 @@
     e.preventDefault();
     var text = input.value.trim();
     if (!text || sending) return;
-    if (!hasConv && !hasWords(text)) { showErr(T.words); return; }
+    if (!hasConv && !hasWords(text)) {
+      showErr(T.words);
+      api('POST', '/visitor/blocked', { token: token, reason: 'emoji' }).catch(function () {}); // solo para las estadísticas
+      return;
+    }
     sending = true;
     showEmojis(false);
     root.classList.add('bzc-busy');

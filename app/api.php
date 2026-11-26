@@ -77,6 +77,7 @@ class Api
                 array('POST', '#^/visitor/messages$#', 'visitor_send'),
                 array('POST', '#^/visitor/upload$#', 'visitor_send'),
                 array('POST', '#^/visitor/typing$#', 'visitor_typing'),
+                array('POST', '#^/visitor/blocked$#', 'visitor_blocked'),
                 array('GET', '#^/webhook/(whatsapp|facebook)$#', 'webhook_verify'),
                 array('POST', '#^/webhook/(whatsapp|facebook)$#', 'webhook'),
                 array('POST', '#^/auth/login$#', 'login'),
@@ -286,6 +287,19 @@ class Api
         return array('ok' => true);
     }
 
+    /**
+     * El widget no ha enviado el primer mensaje porque solo tenía emojis (lo comprueba antes de enviarlo): solo se cuenta
+     * para las estadísticas. Con límite por conexión, para que nadie pueda inflar la cifra.
+     */
+    private static function visitor_blocked()
+    {
+        $token = self::visitor_token();
+        if (self::param('reason') === 'emoji' && rate_limit('blocked', 10, 3600) && !Core::find('web', $token)) {
+            Stats::block('emoji');
+        }
+        return array('ok' => true);
+    }
+
     /** Texto y/o archivo del visitante. */
     private static function visitor_send()
     {
@@ -303,18 +317,27 @@ class Api
             // 1) campo trampa invisible: si viene relleno, se contesta como si nada pero no se crea el chat;
             if ((string) self::param('hp') !== '') {
                 log_error('Widget: chat nuevo descartado (campo trampa relleno)');
+                Stats::block('trap');
                 return array('ok' => true, 'id' => 0);
             }
             // 2) el primer mensaje tiene que tener alguna letra o cifra (no solo emojis o signos);
             if ($text !== '' && !$hasFile && !preg_match('/[\p{L}\p{N}]/u', $text)) {
+                Stats::block('emoji');
                 throw new ApiError('Cuéntanos tu consulta con palabras, no solo con emojis.', 422);
             }
             // 3) alguna pulsación o clic real en el widget; 4) prueba de trabajo (con un reto de hace al menos unos segundos);
             if ((int) self::param('ui', 0) < 1) {
+                Stats::block('ui');
                 throw new ApiError('Verificación anti-spam no superada. Recarga la página e inténtalo de nuevo.', 403);
             }
-            self::verify_pow();
+            try {
+                self::verify_pow();
+            } catch (ApiError $e) {
+                Stats::block('pow');
+                throw $e;
+            }
             if (!rate_limit('newconv', 5, 3600)) {
+                Stats::block('limit');
                 throw new ApiError('Demasiadas conversaciones nuevas desde tu conexión. Inténtalo más tarde.', 429);
             }
         }

@@ -70,7 +70,7 @@ class DB
         self::exec('DELETE FROM `' . $table . '` WHERE ' . $w, array_values($where));
     }
 
-    const SCHEMA_VERSION = '18';
+    const SCHEMA_VERSION = '19';
 
     /** Aplica el esquema si la versión guardada no es la actual (tras actualizar el código). */
     public static function ensure_schema()
@@ -217,6 +217,13 @@ class DB
               k VARCHAR(190) NOT NULL PRIMARY KEY,
               v MEDIUMTEXT NOT NULL,
               expires INT NOT NULL DEFAULT 0
+            ) $e",
+            // Chats nuevos del widget rechazados (bots, solo emojis…), contados por día y motivo para las estadísticas.
+            "CREATE TABLE IF NOT EXISTS blocked (
+              day CHAR(10) NOT NULL,
+              reason VARCHAR(12) NOT NULL,
+              n INT UNSIGNED NOT NULL DEFAULT 0,
+              PRIMARY KEY (day, reason)
             ) $e",
         );
         foreach ($sql as $q) {

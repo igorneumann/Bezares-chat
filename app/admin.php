@@ -2631,6 +2631,7 @@ CSS;
             . $kpi('En &lt; ' . $thr . ' min laborables', $s['within_biz'], self::pct($s['within_biz'], $s['total']) . ' del total', 'ok', $dl('within_biz', 'up'))
             . $kpi('Tiempo de respuesta medio', self::dur($s['avg']), 'Mediana: ' . self::dur($s['median']), 'warn', $dl('avg', 'down', true))
             . $kpi('Tiempo medio en horario laboral', self::dur($s['avg_biz']), 'Mediana: ' . self::dur($s['median_biz']), 'warn', $dl('avg_biz', 'down', true))
+            . $kpi('Chats bloqueados', $s['blocked'], $s['blocked_bots'] . ' por bots · ' . ($s['blocked_by']['emoji'] ?? 0) . ' solo con emojis', '', $dl('blocked', ''))
             . '</div>';
 
         // Chats por día: todos los días del periodo; al comparar, cada día se empareja con el mismo día ordinal del otro periodo.
@@ -2709,7 +2710,18 @@ CSS;
         $html .= '<div class="split">'
             . '<div class="card"><h2>Por agente (primera respuesta)</h2><div class="table-wrap"><table><thead><tr>' . $ah . '</tr></thead><tbody>' . ($agents ?: '<tr><td colspan="7" class="muted">Sin datos</td></tr>') . '</tbody></table></div></div>'
             . '<div class="card"><h2>Por canal</h2><div class="table-wrap"><table><thead><tr>' . $chh . '</tr></thead><tbody>' . ($channels ?: '<tr><td colspan="5" class="muted">Sin datos</td></tr>') . '</tbody></table></div></div>'
-            . '</div><p class="muted">Los tiempos se miden desde que el cliente inicia el chat hasta la primera respuesta de una persona o, si ocurre antes, hasta que se marca como resuelta (en ese momento se deja de contar). El tiempo laboral solo cuenta las horas dentro del horario configurado.'
+            . '</div>';
+        // Chats nuevos del widget que se han rechazado, por motivo. No cuentan en «Chats recibidos».
+        $brows = '';
+        foreach (Stats::BLOCKED as $k => $label) {
+            $v = (int) ($s['blocked_by'][$k] ?? 0);
+            $pv = $c ? (int) ($c['blocked_by'][$k] ?? 0) : 0;
+            $brows .= '<tr><td>' . self::h($label) . '</td><td>' . $v . '</td>' . ($c ? $prev($pv) : '') . '</tr>';
+        }
+        $brows .= '<tr><td><b>Total</b></td><td><b>' . $s['blocked'] . '</b></td>' . ($c ? $prev('<b>' . $c['blocked'] . '</b>') : '') . '</tr>';
+        $html .= '<div class="card"><h2>Chats bloqueados</h2><div class="table-wrap"><table><thead><tr><th>Motivo</th><th>Intentos</th>' . ($c ? '<th class="prev">antes</th>' : '') . '</tr></thead><tbody>' . $brows . '</tbody></table></div>'
+            . '<p class="muted">Intentos de abrir un chat en la web que se han rechazado y no llegan al equipo. Si el visitante lo vuelve a intentar bien (por ejemplo, con palabras en vez de solo emojis), su chat sí cuenta en «Chats recibidos». Se cuentan desde esta versión.</p></div>'
+            . '<p class="muted">Los tiempos se miden desde que el cliente inicia el chat hasta la primera respuesta de una persona o, si ocurre antes, hasta que se marca como resuelta (en ese momento se deja de contar). El tiempo laboral solo cuenta las horas dentro del horario configurado.'
             . ($c ? ' En la gráfica, cada día se compara con el mismo día ordinal del otro periodo (1.º con 1.º, 2.º con 2.º…).' : '') . '</p>';
         self::layout('Estadísticas', 'Del ' . $fmt($from) . ' al ' . $fmt($to) . ($c ? ' · comparado con del ' . $fmt($cFrom) . ' al ' . $fmt($cTo) : ''), $html, $me);
     }

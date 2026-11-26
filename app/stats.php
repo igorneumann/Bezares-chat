@@ -2,6 +2,29 @@
 /** Estadísticas de atención. */
 class Stats
 {
+    /** Motivos de bloqueo de un chat nuevo del widget, en el orden en que se muestran. */
+    const BLOCKED = array(
+        'emoji' => 'Primer mensaje solo con emojis',
+        'trap'  => 'Bot: rellenó el campo trampa',
+        'ui'    => 'Bot: sin pulsaciones ni clics en el chat',
+        'pow'   => 'Bot: prueba anti-bot no superada',
+        'limit' => 'Demasiados chats nuevos desde la misma conexión',
+    );
+
+    /** Cuenta un chat nuevo rechazado. Nunca falla: las estadísticas no pueden impedir contestar. */
+    public static function block($reason)
+    {
+        if (!isset(self::BLOCKED[$reason])) {
+            return;
+        }
+        try {
+            DB::exec('INSERT INTO blocked (day, reason, n) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE n = n + 1',
+                array((new DateTimeImmutable('now', tz()))->format('Y-m-d'), $reason));
+        } catch (Throwable $e) {
+            log_error('Estadísticas (bloqueados): ' . $e->getMessage());
+        }
+    }
+
     private static function avg($a)
     {
         return $a ? (int) round(array_sum($a) / count($a)) : null;
@@ -88,7 +111,14 @@ class Stats
         }
         usort($agents, function ($x, $y) { return $y['answered'] - $x['answered']; });
         ksort($s['by_day']);
+        $blocked = array();
+        foreach (DB::rows('SELECT reason, SUM(n) AS n FROM blocked WHERE day BETWEEN ? AND ? GROUP BY reason', array($from, $to)) as $b) {
+            $blocked[$b['reason']] = ($blocked[$b['reason']] ?? 0) + (int) $b['n'];
+        }
         return array(
+            'blocked'     => array_sum($blocked),
+            'blocked_bots' => array_sum(array_diff_key($blocked, array('emoji' => 0))),
+            'blocked_by'  => $blocked,
             'threshold'   => (int) $threshold_min,
             'total'       => $s['total'],
             'answered'    => $s['answered'],
