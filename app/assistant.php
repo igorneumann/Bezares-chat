@@ -709,7 +709,10 @@ class Assistant
         if ($t !== '') {
             $bad = preg_match('/\S*(?:@|https?:|www\.)\S*|\+\d[\d ().\-]{6,}/i', $t, $x) ? trim($x[0]) : ''; // en la parte técnica no va ningún contacto
             $bad = $bad !== '' ? $bad : self::unknown_value($t, $source . "\n" . $asked);
-            if ($bad === '') {
+            $why = $bad === '' && preg_match('/\d/', $t) ? self::verify_technical($t, $found, $asked) : '';
+            if ($why !== '') {
+                self::drop('La revisión de la respuesta técnica no la ha dado por buena', $why);
+            } elseif ($bad === '') {
                 $parts[] = $t;
                 self::$clarify = !empty($a['clarify']) && preg_match('/[?？]\s*$/u', $t) === 1; // solo si de verdad termina preguntando
             } else {
@@ -743,6 +746,67 @@ class Assistant
         return mb_substr(implode("\n\n", $parts), 0, 3000) . "\n\n" . $q;
     }
 
+    /**
+     * Segunda opinión antes de enviar una respuesta técnica con cifras: el modelo comprueba, con los fragmentos de los catálogos
+     * que se han usado, que cada modelo existe con ese nombre y tamaño y que cada cifra está asignada a ese modelo y magnitud
+     * (las tablas salen del PDF desordenadas y es fácil emparejar mal). Devuelve '' si está respaldada o el motivo si no
+     * (también si la revisión falla: ante la duda, que conteste una persona).
+     */
+    private static function verify_technical($answer, $found, $asked)
+    {
+        $sys = "Eres un revisor muy estricto de respuestas técnicas sobre productos industriales. Comprueba si la RESPUESTA a la CONSULTA del cliente se apoya por completo en los FRAGMENTOS de los catálogos.\n"
+            . "- Cada modelo, serie o tamaño que nombra la respuesta tiene que aparecer en los fragmentos con ese mismo nombre y tamaño. Un tamaño que no existe en la tabla (por ejemplo, uno intermedio) no está respaldado.\n"
+            . "- Cada cifra tiene que estar en los fragmentos asignada a ese mismo modelo y a esa misma magnitud (presión continua, presión de pico, caudal, potencia, velocidad, peso…), con la misma unidad.\n"
+            . "- El texto de las tablas sale del PDF desordenado. Si no se puede saber con seguridad a qué modelo o magnitud corresponde una cifra, no está respaldada.\n"
+            . "- Decir que un modelo o un dato no aparece cuando sí aparece en los fragmentos también es un error.\n"
+            . "- supported=true solo si todo lo anterior se cumple. Si no, supported=false y en problem explica en español, en una frase, qué falla (por ejemplo: «FR 45 no existe en la tabla de la serie FR»).";
+        $in = "CONSULTA DEL CLIENTE:\n" . mb_substr(trim($asked), -1500) . "\n\nRESPUESTA:\n" . $answer . "\n\nFRAGMENTOS:\n" . mb_substr($found, 0, 80000);
+        $body = array(
+            'model' => self::model(), 'store' => false, 'instructions' => $sys, 'max_output_tokens' => 800,
+            'input' => array(array('role' => 'user', 'content' => $in)),
+            'text' => array('format' => array('type' => 'json_schema', 'name' => 'revision', 'strict' => true, 'schema' => array(
+                'type' => 'object', 'additionalProperties' => false, 'required' => array('supported', 'problem'),
+                'properties' => array('supported' => array('type' => 'boolean'), 'problem' => array('type' => 'string')),
+            ))),
+        );
+        if (preg_match('/^gpt-[34]/', self::model())) {
+            $body['temperature'] = 0;
+        }
+        list(, $d, $err) = self::call('POST', 'responses', $body, 40);
+        if ($err !== '') {
+            log_error('AI (revisión): ' . $err);
+            return 'no se ha podido revisar la respuesta';
+        }
+        $text = '';
+        foreach ((array) ($d['output'] ?? array()) as $o) {
+            foreach (($o['type'] ?? '') === 'message' ? (array) ($o['content'] ?? array()) : array() as $p) {
+                $text .= ($p['type'] ?? '') === 'output_text' ? (string) ($p['text'] ?? '') : '';
+            }
+        }
+        $v = json_decode($text, true);
+        if (!is_array($v) || !isset($v['supported'])) {
+            return 'la revisión no ha dado una respuesta válida';
+        }
+        return $v['supported'] ? '' : (trim((string) ($v['problem'] ?? '')) ?: 'hay datos que no están en los catálogos');
+    }
+
+    /** Referencias de producto escritas de otra forma («FR80», «FRD80RB» → «FR 80 FRD 80»), para buscarlas también así. */
+    private static function code_variants($text)
+    {
+        // Letras y cifras juntas («fr80», «FRD80RB»), o en mayúsculas y separadas («FR 80», «BELA-50»).
+        preg_match_all('/\b(?:([A-Za-z]{2,6})(\d{1,4})|([A-Z]{2,6})[\s\-_](\d{1,4}))[A-Za-z]{0,4}\b/u', $text, $m, PREG_SET_ORDER);
+        $out = array();
+        foreach ($m as $x) {
+            $l = strtoupper($x[1] !== '' ? $x[1] : $x[3]);
+            $x[2] = $x[2] !== '' ? $x[2] : $x[4];
+            $out[$l . ' ' . $x[2]] = true;
+            if (strlen($l) >= 3) {
+                $out[substr($l, 0, -1) . ' ' . $x[2]] = true; // FRD 80 → FR 80 (la última letra suele ser la variante)
+            }
+        }
+        return implode(' ', array_slice(array_keys($out), 0, 12));
+    }
+
     /** Fragmentos de los archivos que coinciden con los últimos mensajes del cliente. Si falla, lista vacía. */
     private static function search($store, array $msgs)
     {
@@ -758,7 +822,8 @@ class Assistant
         $out = array();
         $seen = array();
         // El último mensaje y, por si continúa una pregunta anterior («¿y la de pico?»), los tres últimos juntos.
-        foreach (array_unique(array(end($said), implode("\n", array_slice($said, -3)))) as $q) {
+        $codes = self::code_variants(implode("\n", array_slice($said, -3)));
+        foreach (array_unique(array_filter(array($codes, end($said), implode("\n", array_slice($said, -3))))) as $q) {
             list(, $d, $err) = self::call('POST', 'vector_stores/' . rawurlencode($store) . '/search', array('query' => $q, 'max_num_results' => 10, 'rewrite_query' => true), 15);
             if ($err !== '') {
                 log_error('AI (búsqueda): ' . $err);
