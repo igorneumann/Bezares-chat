@@ -27,32 +27,32 @@
       online: 'Normalmente respondemos en pocos minutos', offline: 'Fuera de horario: te responderemos por correo', away: 'Ahora no hay nadie conectado: te responderemos lo antes posible',
       awayHint: 'Ahora mismo no hay nadie conectado. Déjanos tu consulta y te responderemos lo antes posible.', stOn: 'en línea', stOff: 'desconectado',
       edited: 'editado', typing: ' está escribiendo', agent: 'Un agente', error: 'No se pudo enviar. Inténtalo de nuevo.', tooBig: 'El archivo es demasiado grande', close: 'Cerrar', open: 'Abrir chat',
-      hint: 'Escríbenos tu consulta y te atenderemos enseguida.', closedHint: 'Ahora mismo estamos fuera de horario. Tu consulta se contestará por correo electrónico.', tzOf: ' (hora de %s)' },
+      words: 'Cuéntanos tu consulta con palabras, no solo con emojis.', hint: 'Escríbenos tu consulta y te atenderemos enseguida.', closedHint: 'Ahora mismo estamos fuera de horario. Tu consulta se contestará por correo electrónico.', tzOf: ' (hora de %s)' },
     en: { emoji: 'Emojis', recent: 'Recent', placeholder: 'Type a message…', send: 'Send', attach: 'Attach image, audio, video or document', record: 'Record audio', stop: 'Stop and send',
       online: 'We usually reply in a few minutes', offline: 'Outside business hours: we will reply by email', away: 'Nobody is online right now: we will reply as soon as possible',
       awayHint: 'Nobody is online right now. Leave us your question and we will reply as soon as possible.', stOn: 'online', stOff: 'offline',
       edited: 'edited', typing: ' is typing', agent: 'An agent', error: 'Could not send. Please try again.', tooBig: 'The file is too large', close: 'Close', open: 'Open chat',
-      hint: 'Write us your question and we will help you right away.', closedHint: 'We are outside business hours. Your question will be answered by email.', tzOf: ' (%s time)' },
+      words: 'Please tell us your question in words, not only with emojis.', hint: 'Write us your question and we will help you right away.', closedHint: 'We are outside business hours. Your question will be answered by email.', tzOf: ' (%s time)' },
     fr: { emoji: 'Émojis', recent: 'Récents', placeholder: 'Écrivez un message…', send: 'Envoyer', attach: 'Joindre une image, un audio, une vidéo ou un document', record: 'Enregistrer un audio', stop: 'Arrêter et envoyer',
       online: 'Nous répondons généralement en quelques minutes', offline: 'Hors horaires : nous vous répondrons par e-mail', away: 'Personne n’est connecté pour le moment : nous vous répondrons dès que possible',
       awayHint: 'Personne n’est connecté pour le moment. Laissez-nous votre question et nous vous répondrons dès que possible.', stOn: 'en ligne', stOff: 'hors ligne',
       edited: 'modifié', typing: ' est en train d’écrire', agent: 'Un conseiller', error: 'Envoi impossible. Veuillez réessayer.', tooBig: 'Le fichier est trop volumineux', close: 'Fermer', open: 'Ouvrir le chat',
-      hint: 'Écrivez-nous votre question et nous vous aiderons tout de suite.', closedHint: 'Nous sommes en dehors de nos horaires. Nous répondrons à votre question par e-mail.', tzOf: ' (heure de %s)' },
+      words: 'Décrivez votre question avec des mots, pas seulement avec des émojis.', hint: 'Écrivez-nous votre question et nous vous aiderons tout de suite.', closedHint: 'Nous sommes en dehors de nos horaires. Nous répondrons à votre question par e-mail.', tzOf: ' (heure de %s)' },
     de: { emoji: 'Emojis', recent: 'Zuletzt verwendet', placeholder: 'Nachricht schreiben…', send: 'Senden', attach: 'Bild, Audio, Video oder Dokument anhängen', record: 'Audio aufnehmen', stop: 'Beenden und senden',
       online: 'Wir antworten in der Regel in wenigen Minuten', offline: 'Außerhalb der Geschäftszeiten: Wir antworten per E-Mail', away: 'Derzeit ist niemand online: Wir antworten so bald wie möglich',
       awayHint: 'Derzeit ist niemand online. Schreiben Sie uns Ihre Frage, wir antworten so bald wie möglich.', stOn: 'online', stOff: 'offline',
       edited: 'bearbeitet', typing: ' schreibt', agent: 'Ein Mitarbeiter', error: 'Senden nicht möglich. Bitte versuchen Sie es erneut.', tooBig: 'Die Datei ist zu groß', close: 'Schließen', open: 'Chat öffnen',
-      hint: 'Schreiben Sie uns Ihre Frage, wir helfen Ihnen gleich weiter.', closedHint: 'Wir sind gerade außerhalb der Geschäftszeiten. Ihre Frage wird per E-Mail beantwortet.', tzOf: ' (Ortszeit %s)' },
+      words: 'Bitte beschreiben Sie Ihr Anliegen mit Worten, nicht nur mit Emojis.', hint: 'Schreiben Sie uns Ihre Frage, wir helfen Ihnen gleich weiter.', closedHint: 'Wir sind gerade außerhalb der Geschäftszeiten. Ihre Frage wird per E-Mail beantwortet.', tzOf: ' (Ortszeit %s)' },
     pt: { emoji: 'Emojis', recent: 'Recentes', placeholder: 'Escreva uma mensagem…', send: 'Enviar', attach: 'Anexar imagem, áudio, vídeo ou documento', record: 'Gravar áudio', stop: 'Parar e enviar',
       online: 'Normalmente respondemos em poucos minutos', offline: 'Fora do horário: responderemos por e-mail', away: 'Ninguém está online neste momento: responderemos assim que possível',
       awayHint: 'Ninguém está online neste momento. Deixe-nos a sua questão e responderemos assim que possível.', stOn: 'online', stOff: 'offline',
       edited: 'editado', typing: ' está a escrever', agent: 'Um agente', error: 'Não foi possível enviar. Tente novamente.', tooBig: 'O ficheiro é demasiado grande', close: 'Fechar', open: 'Abrir chat',
-      hint: 'Escreva-nos a sua questão e ajudá-lo-emos de imediato.', closedHint: 'Estamos fora do horário de atendimento. A sua questão será respondida por e-mail.', tzOf: ' (hora de %s)' },
+      words: 'Conte-nos a sua dúvida com palavras, não apenas com emojis.', hint: 'Escreva-nos a sua questão e ajudá-lo-emos de imediato.', closedHint: 'Estamos fora do horário de atendimento. A sua questão será respondida por e-mail.', tzOf: ' (hora de %s)' },
     it: { emoji: 'Emoji', recent: 'Recenti', placeholder: 'Scrivi un messaggio…', send: 'Invia', attach: 'Allega immagine, audio, video o documento', record: 'Registra audio', stop: 'Ferma e invia',
       online: 'Di solito rispondiamo in pochi minuti', offline: 'Fuori orario: risponderemo via e-mail', away: 'Al momento nessuno è online: risponderemo appena possibile',
       awayHint: 'Al momento nessuno è online. Lasciaci la tua domanda e risponderemo appena possibile.', stOn: 'online', stOff: 'offline',
       edited: 'modificato', typing: ' sta scrivendo', agent: 'Un operatore', error: 'Invio non riuscito. Riprova.', tooBig: 'Il file è troppo grande', close: 'Chiudi', open: 'Apri chat',
-      hint: 'Scrivici la tua domanda e ti aiuteremo subito.', closedHint: 'Siamo fuori orario. Risponderemo alla tua domanda via e-mail.', tzOf: ' (ora di %s)' }
+      words: 'Descrivici la tua richiesta a parole, non solo con le emoji.', hint: 'Scrivici la tua domanda e ti aiuteremo subito.', closedHint: 'Siamo fuori orario. Risponderemo alla tua domanda via e-mail.', tzOf: ' (ora di %s)' }
   };
 
   /*
@@ -73,7 +73,7 @@
   // Hoja de estilos y configuración (color, textos) desde el servidor de chat.
   var css = document.createElement('link');
   css.rel = 'stylesheet';
-  css.href = base + '/widget.css?v=6';
+  css.href = base + '/widget.css?v=7';
   document.head.appendChild(css);
 
   fetch(base + '/api' + configUrl, { credentials: 'omit' })
@@ -176,6 +176,7 @@
         '<input type="file" class="bzc-file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.csv" hidden>' +
         '<button type="button" class="bzc-ico bzc-emo" title="' + esc(T.emoji) + '" aria-label="' + esc(T.emoji) + '" aria-expanded="false">' + svgEmoji() + '</button>' +
         '<textarea class="bzc-input" rows="1" placeholder="' + esc(T.placeholder) + '" maxlength="4000"></textarea>' +
+        '<input type="text" class="bzc-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' + // trampa para bots: una persona no la ve ni la rellena
         '<button type="button" class="bzc-ico bzc-mic" title="' + esc(T.record) + '" aria-label="' + esc(T.record) + '">' + svgMic() + '</button>' +
         '<button type="submit" class="bzc-ico bzc-send" title="' + esc(T.send) + '" aria-label="' + esc(T.send) + '">' + svgSend() + '</button>' +
       '</form>' +
@@ -184,6 +185,14 @@
   document.body.appendChild(root);
 
   var $ = function (s) { return root.querySelector(s); };
+  // Anti-bot: cuenta pulsaciones y clics reales (isTrusted) en el chat; un script que solo llama a la API no tiene ninguno.
+  var human = 0;
+  ['keydown', 'pointerdown', 'input'].forEach(function (ev) { root.addEventListener(ev, function (e) { if (e.isTrusted) human++; }, true); });
+  // ¿Tiene alguna letra o cifra? (el primer mensaje no puede ser solo emojis o signos)
+  var hasWords = (function () {
+    try { var re = new RegExp('[\\p{L}\\p{N}]', 'u'); return function (s) { return re.test(s); }; }
+    catch (e) { return function (s) { return /[0-9A-Za-zª-˿Ͱ-῿぀-鿿가-힯豈-﫿０-ￜ]/.test(s); }; }
+  })();
   var panel = $('.bzc-panel'), msgs = $('.bzc-msgs'), input = $('.bzc-input'), form = $('.bzc-form'),
       fab = $('.bzc-fab'), badge = $('.bzc-badge'), fileIn = $('.bzc-file'), err = $('.bzc-err'),
       sub = $('.bzc-sub'), mic = $('.bzc-mic'), emoBtn = $('.bzc-emo'), emoBox = $('.bzc-emojis');
@@ -409,12 +418,13 @@
   var powPromise = null;
   function solvePow() {
     return api('GET', '/visitor/challenge').then(function (ch) {
+      var t0 = Date.now();
       var bits = ch.bits, mask = bits >= 32 ? 0xffffffff : (0xffffffff << (32 - bits)) >>> 0, nonce = 0;
       return new Promise(function (resolve) {
         (function step() {
           for (var k = 0; k < 4000; k++, nonce++) {
             var H = sha256(ch.c + ':' + nonce);
-            if (((H[0] >>> 0) & mask) === 0 && (bits <= 32)) { resolve({ c: ch.c, s: ch.s, n: String(nonce), exp: Date.now() + 8 * 60000 }); return; }
+            if (((H[0] >>> 0) & mask) === 0 && (bits <= 32)) { resolve({ c: ch.c, s: ch.s, n: String(nonce), t: t0, exp: t0 + 8 * 60000 }); return; }
           }
           setTimeout(step, 0);
         })();
@@ -481,13 +491,17 @@
     return getPow().then(function (p) {
       usePow();
       fields.pow_c = p.c; fields.pow_s = p.s; fields.pow_n = p.n;
-      return fields;
+      fields.ui = human; fields.hp = $('.bzc-hp').value;
+      // El servidor no acepta un reto de hace menos de 3 s (un bot lo pide y envía al instante): si hace falta, se espera.
+      var wait = 3500 - (Date.now() - p.t);
+      return wait > 0 ? new Promise(function (r) { setTimeout(function () { r(fields); }, wait); }) : fields;
     });
   }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var text = input.value.trim();
     if (!text || sending) return;
+    if (!hasConv && !hasWords(text)) { showErr(T.words); return; }
     sending = true;
     showEmojis(false);
     root.classList.add('bzc-busy');

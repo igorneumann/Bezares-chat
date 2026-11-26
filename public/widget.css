@@ -78,3 +78,4 @@
 @media (prefers-reduced-motion:reduce){.bzc-typing span{animation:bzc-pulse 1.2s infinite}}
 .bzc-status{position:absolute;right:1px;bottom:1px;width:15px;height:15px;border-radius:50%;background:#c62828;border:2.5px solid #fff;box-sizing:border-box}
 .bzc-online .bzc-status{background:#22a34a}
+.bzc-root .bzc-hp{position:absolute!important;left:-10000px!important;top:auto!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}

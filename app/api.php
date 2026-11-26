@@ -190,6 +190,8 @@ class Api
      */
     const POW_BITS = 18;
     const POW_TTL = 600;
+    /** Un reto no vale hasta pasados estos segundos: una persona tarda más en escribir; un bot lo pide y envía al instante. */
+    const POW_MIN_AGE = 3;
 
     private static function visitor_challenge()
     {
@@ -227,6 +229,9 @@ class Api
             throw $fail;
         }
         if (!hash_equals(sign('pow|' . $c), $s) || (int) $m[2] < time() || (int) $m[3] < self::POW_BITS) {
+            throw $fail;
+        }
+        if (time() - ((int) $m[2] - self::POW_TTL) < self::POW_MIN_AGE) {
             throw $fail;
         }
         if (self::leading_zero_bits(hash('sha256', $c . ':' . $n, true)) < (int) $m[3]) {
@@ -294,7 +299,20 @@ class Api
             throw new ApiError('Mensaje vacío');
         }
         if (!Core::find('web', $token)) {
-            // Chat nuevo: prueba de trabajo anti-bot y límite de chats nuevos por IP, ANTES de aceptar ningún archivo.
+            // Chat nuevo. Anti-bot, ANTES de aceptar ningún archivo:
+            // 1) campo trampa invisible: si viene relleno, se contesta como si nada pero no se crea el chat;
+            if ((string) self::param('hp') !== '') {
+                log_error('Widget: chat nuevo descartado (campo trampa relleno)');
+                return array('ok' => true, 'id' => 0);
+            }
+            // 2) el primer mensaje tiene que tener alguna letra o cifra (no solo emojis o signos);
+            if ($text !== '' && !$hasFile && !preg_match('/[\p{L}\p{N}]/u', $text)) {
+                throw new ApiError('Cuéntanos tu consulta con palabras, no solo con emojis.', 422);
+            }
+            // 3) alguna pulsación o clic real en el widget; 4) prueba de trabajo (con un reto de hace al menos unos segundos);
+            if ((int) self::param('ui', 0) < 1) {
+                throw new ApiError('Verificación anti-spam no superada. Recarga la página e inténtalo de nuevo.', 403);
+            }
             self::verify_pow();
             if (!rate_limit('newconv', 5, 3600)) {
                 throw new ApiError('Demasiadas conversaciones nuevas desde tu conexión. Inténtalo más tarde.', 429);
