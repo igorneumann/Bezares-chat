@@ -38,10 +38,12 @@ class Cron
             }
         }
 
-        // Sin respuesta a las X h (23 por defecto) en WhatsApp: se avisa de que se contestará por correo (quedan 60 min de margen).
-        if (Settings::get('window_notice_enabled') && !Flow::handles_window()) { // si el diagrama publicado lo tiene, lo hace él
+        // Sin respuesta a las X h (23 por defecto) en WhatsApp y Facebook: se avisa de que se contestará por correo (quedan 60 min de margen).
+        // Si el diagrama publicado tiene ese aviso para un canal, lo hace él.
+        $chans = Flow::live() ? array_values(array_filter(array('whatsapp', 'facebook'), function ($ch) { return !Flow::handles_window(null, $ch); })) : array('whatsapp', 'facebook');
+        if (Settings::get('window_notice_enabled') && $chans) {
             $rows = DB::col(
-                "SELECT id FROM conversations WHERE is_test = 0 AND status = 'open' AND channel = 'whatsapp'
+                "SELECT id FROM conversations WHERE is_test = 0 AND status = 'open' AND channel IN ('" . implode("', '", $chans) . "')
                  AND last_customer_at > last_agent_at AND last_customer_at <= ? AND last_customer_at > ?
                  AND window_try_at < last_customer_at LIMIT 50",
                 array($now - max(1, min(23, (int) Settings::get('window_hours'))) * 3600000, $now - Channels::WINDOW_MS + 60000)

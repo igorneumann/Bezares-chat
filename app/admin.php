@@ -1862,8 +1862,8 @@ CSS;
             'when' => 'Al recibir un correo válido, fuera de horario. Después, como mucho una vez cada 12 horas si vuelve a escribir.'),
         'reminder' => array('title' => 'Recordatorio', 'on' => 'reminder_enabled', 'msgs' => array('reminder' => ''), 'opts' => array('reminder_minutes'), 'vars' => array('name', 'company'),
             'when' => 'Si nadie contesta al cliente, solo en horario laboral. Además vuelve a sonar el aviso a los agentes.'),
-        'window'   => array('title' => 'Límite de WhatsApp', 'on' => 'window_notice_enabled', 'msgs' => array('window_notice' => 'Si tenemos su correo', 'window_noemail' => 'Si no tenemos su correo'), 'opts' => array('window_hours'), 'vars' => array('name', 'email', 'company'),
-            'when' => 'Solo WhatsApp: si nadie ha contestado, avisa de que se responderá por correo y deja de contar el tiempo de respuesta. A las 24 h WhatsApp ya no deja escribirle. Necesita el cron del servidor (o algún programa de Windows conectado a esa hora).'),
+        'window'   => array('title' => 'Límite de 24 h (WhatsApp y Facebook)', 'on' => 'window_notice_enabled', 'msgs' => array('window_notice' => 'Si tenemos su correo', 'window_noemail' => 'Si no tenemos su correo'), 'opts' => array('window_hours'), 'vars' => array('name', 'email', 'company'),
+            'when' => 'WhatsApp y Facebook: si nadie ha contestado, avisa de que se responderá por correo y deja de contar el tiempo de respuesta. A las 24 h Meta ya no deja escribirle. Necesita el cron del servidor (o algún programa de Windows conectado a esa hora).'),
         'followup' => array('title' => 'Seguimiento', 'on' => 'followup_enabled', 'msgs' => array('followup' => ''), 'opts' => array('followup_hours'), 'vars' => array('name', 'company'),
             'when' => 'Si un agente contestó y el cliente no responde. Solo se envía dentro de las 24 h desde el último mensaje del cliente.'),
     );
@@ -1993,7 +1993,7 @@ CSS;
             . '<div>' . $lab('Sí') . $slot('data') . $node('hours', '¿Estamos en horario?', Hours::summary('es') ?: 'Sin días laborables') . $sub
             . '<div class="rb-2 rb-tight"><div>' . $lab('Sí') . $node('thanks', 'Gracias') . '</div><div>' . $lab('No') . $node('ooh', 'Fuera de horario') . '</div></div>' . $subJoin . $slot('end') . '</div></div>' . $join
             . $start('Espera a una persona') . $fork
-            . '<div class="rb-2"><div>' . $lab('Nadie le contesta') . $node('reminder', 'Recordatorio', 'A los {reminder_minutes} minutos, en horario') . $v . $node('window', 'Límite de WhatsApp', 'A las {window_hours} horas, solo WhatsApp') . $slot('no_agent') . '</div>'
+            . '<div class="rb-2"><div>' . $lab('Nadie le contesta') . $node('reminder', 'Recordatorio', 'A los {reminder_minutes} minutos, en horario') . $v . $node('window', 'Límite de 24 h', 'A las {window_hours} horas, WhatsApp y Facebook') . $slot('no_agent') . '</div>'
             . '<div>' . $lab('El cliente no responde al agente') . $node('followup', 'Seguimiento', 'A las {followup_hours} horas') . $slot('no_client') . '</div></div></div>';
 
         if (!$all) {
@@ -2001,7 +2001,7 @@ CSS;
                 . '<div class="rb-2"><div>' . $node('hours', '¿Estamos en horario?', Hours::summary('es') ?: 'Sin días laborables') . '</div><div>' . $node('ooh', 'Vuelve a escribir fuera de horario', 'Como mucho cada 12 horas') . '</div></div>' . $join
                 . $start('Espera a una persona') . $fork
                 . '<div class="rb-2"><div>' . $lab('Nadie le contesta') . $node('reminder', 'Recordatorio', 'A los {reminder_minutes} minutos, en horario')
-                . (in_array('window', $only, true) ? $v . $node('window', 'Límite de WhatsApp', 'A las {window_hours} horas, solo WhatsApp') : '') . $slot('no_agent') . '</div>'
+                . (in_array('window', $only, true) ? $v . $node('window', 'Límite de 24 h', 'A las {window_hours} horas, WhatsApp y Facebook') : '') . $slot('no_agent') . '</div>'
                 . '<div>' . $lab('El cliente no responde al agente') . $node('followup', 'Seguimiento', 'A las {followup_hours} horas') . $slot('no_client') . '</div></div></div>';
         }
         $used = array('robot_steps' => true);

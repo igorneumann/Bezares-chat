@@ -58,16 +58,53 @@ class Flow
         return empty(self::data()['timers']) && (int) Settings::get('window_notice_enabled') && !self::handles_window($g);
     }
 
-    /** ¿Se encarga este diagrama del aviso antes del límite de 24 h de WhatsApp? (si no, sigue el de Tiempos) */
-    public static function handles_window($g = null)
+    /**
+     * ¿Se encarga este diagrama del aviso antes del límite de 24 h de WhatsApp y Facebook? (si no, sigue el de Tiempos)
+     * $channel: solo ese canal ('whatsapp' o 'facebook'); null = los dos.
+     */
+    public static function handles_window($g = null, $channel = null)
     {
         $g = $g ?: self::live();
-        foreach ($g ? $g['nodes'] : array() as $x) {
-            if ($x['type'] === 'timer' && (int) $x['stop'] && $x['trigger'] === 'no_agent' && in_array($x['channel'], array('whatsapp', 'all'), true)) {
-                return true;
+        foreach ($channel ? array($channel) : array('whatsapp', 'facebook') as $ch) {
+            $ok = false;
+            foreach ($g ? $g['nodes'] : array() as $x) {
+                if ($x['type'] === 'timer' && (int) $x['stop'] && $x['trigger'] === 'no_agent' && self::timer_covers($x['channel'], $ch)) {
+                    $ok = true;
+                }
+            }
+            if (!$ok) {
+                return false;
             }
         }
-        return false;
+        return true;
+    }
+
+    /** ¿Una caja de tiempo con este canal vale para un chat de ese canal? ('social' = WhatsApp y Facebook) */
+    public static function timer_covers($timer, $channel)
+    {
+        return $timer === 'all' || $timer === $channel || ($timer === 'social' && in_array($channel, array('whatsapp', 'facebook'), true));
+    }
+
+    /** Una sola vez, al actualizar: el aviso del límite de 24 h que solo era para WhatsApp pasa a valer también para Facebook. */
+    public static function upgrade_window()
+    {
+        $d = self::data();
+        if (!empty($d['win2'])) {
+            return;
+        }
+        foreach (array('live', 'draft') as $k) {
+            foreach (is_array($d[$k]) && !empty($d[$k]['nodes']) ? $d[$k]['nodes'] : array() as $i => $x) {
+                if ($x['type'] === 'timer' && (int) $x['stop'] && $x['trigger'] === 'no_agent' && $x['channel'] === 'whatsapp') {
+                    $d[$k]['nodes'][$i]['channel'] = 'social';
+                    if ($x['title'] === 'Límite de WhatsApp') {
+                        $d[$k]['nodes'][$i]['title'] = 'Límite de WhatsApp y Facebook';
+                    }
+                } elseif ($x['type'] === 'ask' && $x['title'] === 'Pide el correo (límite de WhatsApp)') {
+                    $d[$k]['nodes'][$i]['title'] = 'Pide el correo (límite de 24 h)';
+                }
+            }
+        }
+        Settings::put('robot_flow', array('win2' => 1) + $d);
     }
 
     /** Añade a la derecha las cajas del aviso de WhatsApp, con los textos configurados. */
@@ -82,10 +119,10 @@ class Flow
         $placed = $x0 > 0; // si todo está a 0, lo coloca flow.js
         $s = function ($k) { return (string) Settings::get($k); };
         $new = array(
-            array('type' => 'timer', 'title' => 'Límite de WhatsApp', 'trigger' => 'no_agent', 'minutes' => max(1, min(23, (int) Settings::get('window_hours'))) * 60, 'channel' => 'whatsapp', 'when' => 'always', 'stop' => 1, 'busy' => 1),
+            array('type' => 'timer', 'title' => 'Límite de WhatsApp y Facebook', 'trigger' => 'no_agent', 'minutes' => max(1, min(23, (int) Settings::get('window_hours'))) * 60, 'channel' => 'social', 'when' => 'always', 'stop' => 1, 'busy' => 1),
             array('type' => 'cond', 'title' => '¿Tenemos su correo?', 'cond' => 'email'),
             array('type' => 'say', 'title' => 'Responderemos por correo', 'es' => $s('window_notice_es'), 'en' => $s('window_notice_en')),
-            array('type' => 'ask', 'title' => 'Pide el correo (límite de WhatsApp)', 'kind' => 'email', 'es' => $s('window_noemail_es'), 'en' => $s('window_noemail_en'), 'tries' => 2,
+            array('type' => 'ask', 'title' => 'Pide el correo (límite de 24 h)', 'kind' => 'email', 'es' => $s('window_noemail_es'), 'en' => $s('window_noemail_en'), 'tries' => 2,
                 'retry_es' => $s('invalid_email_es'), 'retry_en' => $s('invalid_email_en'), 'need_es' => '', 'need_en' => '', 'opts_es' => array(), 'opts_en' => array()),
             array('type' => 'say', 'title' => 'Correo recibido', 'es' => '¡Gracias! Te responderemos por correo electrónico, en {email}.', 'en' => 'Thank you! We will answer you by email, at {email}.'),
             array('type' => 'end', 'title' => 'Se contesta por correo'),
@@ -352,7 +389,7 @@ class Flow
                 $since[(int) $x['id']] = $same ? (int) ($d['since'][(int) $x['id']] ?? 0) : now_ms();
             }
         }
-        Settings::put('robot_flow', array('ver' => (int) $d['ver'] + 1, 'live' => $graph, 'draft' => $graph, 'timers' => 1, 'ai' => 1, 'ai2' => 1, 'ai3' => 1, 'since' => $since));
+        Settings::put('robot_flow', array('ver' => (int) $d['ver'] + 1, 'live' => $graph, 'draft' => $graph, 'timers' => 1, 'ai' => 1, 'ai2' => 1, 'ai3' => 1, 'win2' => 1, 'since' => $since));
         log_error('Robot: diagrama publicado por ' . $me['name']);
     }
 
@@ -452,7 +489,7 @@ class Flow
             }
             if ($type === 'timer') {
                 $n += array('trigger' => $pick($x, 'trigger', Robot::TIMED), 'minutes' => max(1, min(Robot::MAX_MINUTES, (int) $str($x, 'minutes'))),
-                    'channel' => $pick($x, 'channel', array('all', 'web', 'whatsapp', 'facebook')), 'when' => $pick($x, 'when', array('always', 'open', 'closed')),
+                    'channel' => $pick($x, 'channel', array('all', 'web', 'whatsapp', 'facebook', 'social')), 'when' => $pick($x, 'when', array('always', 'open', 'closed')),
                     'stop' => empty($x['stop']) ? 0 : 1, 'busy' => empty($x['busy']) ? 0 : 1);
             }
             if ($n['title'] === '') {
@@ -740,9 +777,9 @@ class Flow
             // Solo dentro de las 24 h desde el último mensaje del cliente. Las que paran el tiempo valen también para lo anterior
             // a publicarlas (window_try_at evita repetir el aviso que ya hubiera enviado el robot anterior).
             $sql = "SELECT * FROM conversations WHERE is_test = 0 AND status = 'open' AND $f[0] > $f[1] AND $f[0] <= ? AND $f[0] > ? AND last_customer_at > ?"
-                . ((int) $x['busy'] ? '' : " AND onboarding = 'done'") . ((int) $x['stop'] ? ' AND window_try_at < last_customer_at' : '') . ($x['channel'] !== 'all' ? ' AND channel = ?' : '') . ' LIMIT 50';
+                . ((int) $x['busy'] ? '' : " AND onboarding = 'done'") . ((int) $x['stop'] ? ' AND window_try_at < last_customer_at' : '') . ($x['channel'] === 'social' ? " AND channel IN ('whatsapp', 'facebook')" : ($x['channel'] !== 'all' ? ' AND channel = ?' : '')) . ' LIMIT 50';
             $p = array($now - (int) $x['minutes'] * 60000, (int) $x['stop'] ? 0 : (int) ($d['since'][(int) $x['id']] ?? 0), $now - Channels::WINDOW_MS + 60000);
-            if ($x['channel'] !== 'all') {
+            if ($x['channel'] !== 'all' && $x['channel'] !== 'social') {
                 $p[] = $x['channel'];
             }
             foreach (DB::rows($sql, $p) as $c) {

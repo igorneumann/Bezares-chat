@@ -70,7 +70,7 @@ class DB
         self::exec('DELETE FROM `' . $table . '` WHERE ' . $w, array_values($where));
     }
 
-    const SCHEMA_VERSION = '17';
+    const SCHEMA_VERSION = '18';
 
     /** Aplica el esquema si la versión guardada no es la actual (tras actualizar el código). */
     public static function ensure_schema()
@@ -86,6 +86,11 @@ class DB
                 Flow::upgrade_ai(); // caja «AI» en el diagrama del robot (una sola vez)
             } catch (Throwable $e) {
                 log_error('Robot (AI): ' . $e->getMessage());
+            }
+            try {
+                Flow::upgrade_window(); // el aviso de las 24 h del diagrama vale también para Facebook (una sola vez)
+            } catch (Throwable $e) {
+                log_error('Robot (límite de 24 h): ' . $e->getMessage());
             }
             self::exec("REPLACE INTO settings (k, v) VALUES ('schema_version', ?)", array(json_encode(self::SCHEMA_VERSION)));
         }

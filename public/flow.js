@@ -16,7 +16,7 @@
 
   var TYPE = { start: 'Inicio', say: 'Mensaje', ask: 'Pregunta', cond: 'Bifurcación', end: 'Final', timer: 'Pasa un tiempo', ai: 'AI' };
   var ICON = { start: '▶', say: '💬', ask: '❓', cond: '🔀', end: '👤', timer: '⏱', ai: '✨' };
-  var CHAN = { all: 'Todos', web: 'Web', whatsapp: 'WhatsApp', facebook: 'Facebook' }, TRIG = { no_agent: 'Nadie contesta al cliente', no_client: 'El cliente no responde al agente' };
+  var CHAN = { all: 'Todos', web: 'Web', whatsapp: 'WhatsApp', facebook: 'Facebook', social: 'WhatsApp y Facebook' }, TRIG = { no_agent: 'Nadie contesta al cliente', no_client: 'El cliente no responde al agente' };
   var WHEN = { always: 'Siempre', open: 'Solo en horario', closed: 'Solo fuera de horario' };
   function root(n) { return n.type === 'start' || n.type === 'timer'; } // cajas a las que no llegan líneas
   function span(m) { return m % 60 === 0 ? (m / 60) + (m === 60 ? ' hora' : ' horas') : m + (m === 1 ? ' minuto' : ' minutos'); }
@@ -601,7 +601,7 @@
     var box = sim.querySelector('.fl-timers');
     box.textContent = '';
     G.nodes.forEach(function (n) {
-      if (n.type !== 'timer' || (n.channel !== 'all' && n.channel !== ch)) return;
+      if (n.type !== 'timer' || (n.channel !== 'all' && n.channel !== ch && !(n.channel === 'social' && ch !== 'web'))) return;
       box.appendChild(act('⏱ ' + (n.trigger === 'no_agent' ? 'Nadie contesta en ' : 'No responde en ') + span(n.minutes), 'btn-secondary', function () { simTimer(n); }));
     });
   }

@@ -158,7 +158,7 @@ class Core
     }
 
     /**
-     * Solo WhatsApp: a las 23 h sin respuesta se avisa al cliente de que se le contestará por correo (a las 24 h
+     * WhatsApp y Facebook: a las 23 h sin respuesta se avisa al cliente de que se le contestará por correo (a las 24 h
      * Meta ya no deja escribirle) y se para el tiempo de respuesta. Lo llama Cron una sola vez por mensaje del cliente.
      */
     public static function window_notice($id)
@@ -201,7 +201,7 @@ class Core
     public static function require_window($c)
     {
         if (Channels::must_email($c)) {
-            throw new ApiError('Han pasado más de 24 horas desde el último mensaje del cliente y WhatsApp no permite contestarle por el chat. Usa el envío por correo.', 409);
+            throw new ApiError('Han pasado más de 24 horas desde el último mensaje del cliente y ' . ($c['channel'] === 'facebook' ? 'Facebook' : 'WhatsApp') . ' no permite contestarle por el chat. Usa el envío por correo.', 409);
         }
     }
 
@@ -430,11 +430,12 @@ class Core
             $f['assigned_to'] = $agent['id'];
         }
         self::update($c['id'], $f);
-        if ($c['channel'] !== 'whatsapp') {
+        $meta = Channels::is_meta($c);
+        if (!$meta) {
             self::mark_answered($c['id'], $agent);
         }
-        // En WhatsApp solo cuenta como respuesta si se ha entregado: si no, el cliente sigue esperando.
-        if (self::send_result($id, Channels::send(self::conv($c['id']), $tr ?: $text, $media)) && $c['channel'] === 'whatsapp') {
+        // En WhatsApp y Facebook solo cuenta como respuesta si se ha entregado: si no, el cliente sigue esperando.
+        if (self::send_result($id, Channels::send(self::conv($c['id']), $tr ?: $text, $media)) && $meta) {
             self::mark_answered($c['id'], $agent);
         }
         return $id;
@@ -526,7 +527,7 @@ class Core
         ), array('id' => (int) $m['id']));
         if ($resend) {
             $media = $m['media_url'] !== '' ? array('url' => $m['media_url'], 'type' => $m['media_type'], 'name' => $m['media_name']) : null;
-            if (self::send_result((int) $m['id'], Channels::send($c, $tr ?: $text, $media)) && $c['channel'] === 'whatsapp') {
+            if (self::send_result((int) $m['id'], Channels::send($c, $tr ?: $text, $media)) && Channels::is_meta($c)) {
                 self::mark_answered($c['id'], $agent);
             }
         }
@@ -573,8 +574,8 @@ class Core
         foreach ($rows as $i => $m) {
             $key = $m['conversation_id'] . '|' . trim((string) $m['body']) . '|' . $m['media_url'];
             $rows[$i]['open'] = Channels::is_window_open($m);
-            // En WhatsApp, last_agent_at también cuenta la respuesta por correo.
-            $rows[$i]['later'] = (int) $m['later_sent'] > 0 || ($m['channel'] === 'whatsapp' && (int) $m['last_agent_at'] > (int) $m['created_at']);
+            // last_agent_at también cuenta la respuesta por correo (pasadas las 24 h).
+            $rows[$i]['later'] = (int) $m['later_sent'] > 0 || (int) $m['last_agent_at'] > (int) $m['created_at'];
             $rows[$i]['dup'] = isset($seen[$key]);
             $seen[$key] = true;
         }
@@ -623,7 +624,7 @@ class Core
             if ($ok) {
                 $n['sent']++;
                 $done[(int) $c['id']] = ($done[(int) $c['id']] ?? 0) + 1;
-                if ($c['channel'] === 'whatsapp' && $m['direction'] === 'out') { // un mensaje automático no cuenta como respuesta
+                if ($m['direction'] === 'out') { // un mensaje automático no cuenta como respuesta
                     self::mark_answered($c['id'], array('id' => (int) $m['agent_id']));
                 }
                 continue;

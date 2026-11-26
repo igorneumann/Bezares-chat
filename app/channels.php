@@ -30,10 +30,16 @@ class Channels
         return (now_ms() - (int) $conv['last_customer_at']) < self::WINDOW_MS;
     }
 
-    /** WhatsApp con las 24 h pasadas: solo se puede contestar por correo. (En Facebook el mensaje se intenta y queda «No entregado».) */
+    /** WhatsApp o Facebook: Meta solo deja escribir al cliente en las 24 h siguientes a su último mensaje. */
+    public static function is_meta($conv)
+    {
+        return in_array($conv['channel'], array('whatsapp', 'facebook'), true);
+    }
+
+    /** WhatsApp o Facebook con las 24 h pasadas: solo se puede contestar por correo. */
     public static function must_email($conv)
     {
-        return $conv['channel'] === 'whatsapp' && !self::is_window_open($conv);
+        return self::is_meta($conv) && !self::is_window_open($conv);
     }
 
     /* ---------------------------------------------------------- WhatsApp */
