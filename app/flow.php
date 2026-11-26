@@ -830,6 +830,15 @@ class Flow
                     if (($x['kind'] === 'email' && $c['email'] !== '') || ($x['kind'] === 'name' && $c['name'] !== '')) {
                         break; // ya lo sabemos: no se pregunta
                     }
+                    // Pregunta abierta justo antes de la AI («¿Con qué podemos ayudarle?»): si el primer mensaje del cliente ya era
+                    // su consulta (no un simple «Hola»), no se le pregunta otra vez y la AI contesta con lo que escribió.
+                    if ($x['kind'] === 'text' && ($n[(int) ($e[(int) $x['id']]['0'] ?? 0)]['type'] ?? '') === 'ai') {
+                        $q = self::earlier_question($id);
+                        if ($q !== '') {
+                            Robot::save_answer($id, 'n' . (int) $x['id'], $x['title'], $q);
+                            break;
+                        }
+                    }
                     Core::update($id, array('onboarding' => 'f' . (int) $x['id'], 'onboarding_tries' => 0));
                     return Core::bot_text($id, self::question($x, $c)) && $sent;
                 case 'cond':
@@ -935,6 +944,43 @@ class Flow
                 return Hours::is_open() ? '0' : '1';
         }
     }
+
+    /** Primer mensaje del cliente si ya era una consulta; '' si solo saludaba (o no hay texto). */
+    private static function earlier_question($id)
+    {
+        $t = trim((string) DB::val("SELECT body FROM messages WHERE conversation_id = ? AND direction = 'in' AND deleted = 0 ORDER BY id LIMIT 1", array((int) $id)));
+        return $t !== '' && !self::is_greeting($t) ? $t : '';
+    }
+
+    /**
+     * ¿El mensaje es solo un saludo o una frase de cortesía («Hola», «Buenos días», «Hola, ¿qué tal?», «Hola, soy Ana», «Necesito
+     * ayuda»)? Se quitan los saludos y las palabras de cortesía; es una consulta si quedan al menos 3 palabras, o al menos una
+     * y hay signo de interrogación.
+     */
+    public static function is_greeting($text)
+    {
+        $t = preg_replace('/\S+@\S+|https?:\/\/\S+|www\.\S+/iu', ' ', mb_strtolower((string) $text));
+        $t = strtr($t, array('á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a', 'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o', 'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c', 'ß' => 'ss'));
+        $ask = preg_match('/[?¿]/u', $t) === 1;
+        $t = ' ' . trim(preg_replace('/[^\p{L}]+/u', ' ', $t)) . ' ';
+        foreach (self::GREETINGS as $g) {
+            $t = str_replace(' ' . $g . ' ', ' ', $t);
+            $t = str_replace(' ' . $g . ' ', ' ', $t); // palabras repetidas seguidas («hola hola»)
+        }
+        $words = array_filter(explode(' ', $t), function ($w) { return mb_strlen($w) >= 2; });
+        return !(count($words) >= 3 || ($ask && count($words) >= 1));
+    }
+
+    /** Saludos y frases de cortesía (sin acentos y en minúsculas). Las frases van antes que sus palabras sueltas. */
+    const GREETINGS = array(
+        'muy buenos dias', 'muy buenas tardes', 'muy buenas noches', 'muy buenas', 'buenos dias', 'buenas tardes', 'buenas noches', 'buen dia', 'buenas',
+        'que tal', 'como estas', 'como esta', 'como estan', 'que hay', 'hay alguien', 'alguien ahi', 'me llamo', 'mi nombre es', 'por favor', 'necesito ayuda',
+        'good morning', 'good afternoon', 'good evening', 'good day', 'how are you', 'is anyone there', 'anyone there', 'anybody there', 'my name is', 'i am', 'i need help',
+        'bom dia', 'boa tarde', 'boa noite', 'tudo bem', 'bonjour', 'bonsoir', 'ca va', 'guten morgen', 'guten tag', 'guten abend', 'buongiorno', 'buonasera', 'come stai',
+        'hola', 'holaa', 'holi', 'ola', 'hello', 'hi', 'hey', 'hallo', 'saludos', 'saludo', 'greetings', 'salut', 'ciao', 'gracias', 'thanks', 'thank', 'you', 'merci', 'obrigado',
+        'obrigada', 'grazie', 'danke', 'ok', 'okay', 'vale', 'info', 'informacion', 'information', 'ayuda', 'help', 'please', 'soy', 'alguien', 'anyone', 'buenos', 'dias', 'dia',
+    );
 
     private static function question($x, $c)
     {
