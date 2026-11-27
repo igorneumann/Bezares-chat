@@ -240,6 +240,7 @@ body{font:15px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;backgrou
 h1{font-size:24px;margin:0}
 h2{font-size:17px;margin:0 0 14px}
 small,.muted{color:var(--muted);font-size:13px}
+.app-version{position:fixed;right:10px;bottom:6px;z-index:5;font-size:12px;color:var(--muted);pointer-events:none;user-select:none}
 .inline{display:inline;margin:0}
 /* Botones */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:10px;padding:10px 18px;font-family:inherit;font-size:14px;font-weight:600;line-height:1.2;cursor:pointer;transition:background .15s,box-shadow .15s,transform .05s;white-space:nowrap}
@@ -610,7 +611,8 @@ CSS;
             . '<div class="side-foot"><div class="who">' . self::h($me['name']) . '</div><div class="role">' . self::h(Roles::name($me['role'])) . '</div>'
             . '<form method="post" action="/admin/logout" class="inline">' . self::csrf_field() . '<button class="btn btn-sm">Cerrar sesión</button></form></div></aside>'
             . '<main class="main"><div class="page-head"><div><h1>' . self::h($title) . '</h1>' . ($subtitle ? '<p>' . self::h($subtitle) . '</p>' : '') . '</div>' . $headActions . '</div>'
-            . self::test_banner() . self::flash() . $body . '</main></div></body></html>';
+            . self::test_banner() . self::flash() . $body . '</main></div>'
+            . '<div class="app-version" title="Versión del programa">v' . self::h(BZC_VERSION) . '</div></body></html>';
         exit;
     }
 
