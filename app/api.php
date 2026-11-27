@@ -469,6 +469,7 @@ class Api
             'now'           => $now,
             'business_open' => Hours::is_open($now),
             'wait_minutes'  => max(1, (int) Settings::get('stats_threshold')), // espera en rojo a partir de aquí (en ámbar desde la mitad)
+            'version'       => BZC_VERSION, // el programa de Windows enseña la misma versión que el panel
             'conversations' => array_map(array('Core', 'conv_out'), $convs),
             'messages'      => array_map(array('Core', 'msg_out'), $msgs),
             // Las altas sin habilitar no forman parte del equipo.
