@@ -592,6 +592,18 @@ tr.mhead .muted{margin-left:auto;font-size:13px}
 tr.mhead .chev{width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin:0 3px 3px;flex:none}
 tbody.mgroup.closed .chev{transform:rotate(-45deg);margin-bottom:0}
 tbody.mgroup.closed tr:not(.mhead){display:none!important}
+
+/* Gráficos (assets/charts.js): colores por categoría en orden fijo, rejilla tenue y tooltip */
+:root{--ch1:#2a78d6;--ch2:#eb6834;--ch3:#1baf7a;--ch4:#eda100;--ch5:#e87ba4;--ch6:#008300;--ch7:#6250d6;--ch8:#e34948;--ch-m:#898781;--ch-grid:#e1e0d9;--ch-axis:#c3c2b7;--ch-bg:#fff}
+.chx{position:relative;width:100%}.chx svg{display:block;overflow:visible;font-family:inherit}
+.chx-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);margin:0 0 6px}.chx-legend span{display:inline-flex;align-items:center;gap:6px}
+.chx-legend i.sq{width:10px;height:10px;border-radius:2px}.chx-legend i.ln{width:16px;height:2px}
+.chx-tip{position:absolute;z-index:5;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(16,24,40,.12);padding:8px 10px;font-size:12.5px;display:grid;gap:3px;min-width:140px;white-space:nowrap}
+.chx-tip b{font-weight:700;margin-bottom:2px}.chx-tip span{display:flex;align-items:center;gap:6px;color:var(--muted)}.chx-tip span i{width:8px;height:8px;border-radius:2px;flex:none}
+.chx-tip em{font-style:normal;color:var(--text);font-weight:600;margin-left:auto;padding-left:10px}.chx-tip .foot{border-top:1px solid var(--line);padding-top:4px;margin-top:2px}
+.chx-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.chx-empty{color:var(--muted);margin:0;padding:20px 0;text-align:center}
+.chx-spark{margin-top:8px;height:32px}
 CSS;
     }
 
@@ -599,7 +611,8 @@ CSS;
     {
         return '<!doctype html><html lang="es" class="no-js"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<meta name="referrer" content="no-referrer"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><title>' . self::h($title) . ' · Bezares Chat</title><style>' . self::css() . '</style>'
-            . '<script src="/admin.js?v=' . (int) @filemtime(BZC_ROOT . '/public/admin.js') . '" defer></script></head>';
+            . '<script src="/admin.js?v=' . (int) @filemtime(BZC_ROOT . '/public/admin.js') . '" defer></script>'
+            . '<script src="/charts.js?v=' . (int) @filemtime(BZC_ROOT . '/public/charts.js') . '" defer></script></head>';
     }
 
     /** Página interna con barra lateral. */
@@ -2734,33 +2747,19 @@ CSS;
         };
         $dA = $daysOf($from, $to, $s['by_day']);
         $dB = $c ? $daysOf($cFrom, $cTo, $c['by_day']) : array();
-        $max = 1;
-        foreach (array_merge($dA, $dB) as $x) {
-            $max = max($max, $x[1]['total']);
+        // Gráfico de líneas (assets de charts.js): recibidos y contestados; al comparar, los recibidos del otro periodo en discontinua
+        $tot = function ($x) { return (int) $x[1]['total']; };
+        $series = array(
+            array('name' => 'Recibidos', 'data' => array_map($tot, $dA), 'color' => 1),
+            array('name' => 'Contestados', 'data' => array_map(function ($x) { return (int) $x[1]['answered']; }, $dA), 'color' => 3),
+        );
+        if ($c) {
+            $series[] = array('name' => 'Recibidos ' . $fmt($cFrom) . ' – ' . $fmt($cTo), 'data' => array_slice(array_pad(array_map($tot, $dB), count($dA), 0), 0, count($dA)), 'color' => 'muted', 'dash' => true);
         }
-        $one = function ($day, $cls) use ($max) {
-            if ($day === null) {
-                return '<i class="' . $cls . ' empty"></i>';
-            }
-            $v = $day[1];
-            return '<i class="' . $cls . '" style="height:' . round($v['total'] * 100 / $max) . '%" title="' . date('d/m/Y', strtotime($day[0])) . ': ' . $v['total'] . ' chats, ' . $v['answered'] . ' contestados">'
-                . '<b style="height:' . ($v['total'] ? round($v['answered'] * 100 / $v['total']) : 0) . '%"></b></i>';
-        };
-        $bars = '';
-        $n = max(count($dA), count($dB));
-        $any = false;
-        for ($i = 0; $i < $n; $i++) {
-            $a = $dA[$i] ?? null;
-            $b = $dB[$i] ?? null;
-            $any = $any || ($a && $a[1]['total']) || ($b && $b[1]['total']);
-            $label = $a ? substr($a[0], 8) : '';
-            $bars .= $c
-                ? '<div class="bar"><div class="pair">' . $one($a, '') . $one($b, 'cmp') . '</div><span>' . $label . '</span></div>'
-                : '<div class="bar">' . $one($a, '') . '<span>' . $label . '</span></div>';
-        }
-        $legend = '<div class="legend"><span><span class="sw" style="background:var(--brand-t)"></span>Recibidos</span><span><span class="sw" style="background:var(--brand)"></span>Contestados</span>'
-            . ($c ? '<span><span class="sw" style="background:#98a2b3"></span>Periodo comparado (' . $fmt($cFrom) . ' – ' . $fmt($cTo) . ')</span>' : '') . '</div>';
-        $html .= '<div class="card"><h2>Chats por día</h2>' . ($any ? '<div class="bars' . ($n > 62 ? ' dense' : '') . '">' . $bars . '</div>' . $legend : '<p class="muted">Sin chats en este periodo.</p>') . '</div>';
+        $any = array_sum($series[0]['data']) || ($c && array_sum($series[2]['data']));
+        $chart = '<div class="chx-box" data-h="230" data-chart="' . self::h(json_encode(array('type' => 'line', 'labels' => array_map(function ($x) { return date('j/n', strtotime($x[0])); }, $dA),
+            'series' => $series, 'label' => 'Chats por día', 'ratio' => array(1, 0, 'Contestados')), JSON_UNESCAPED_UNICODE)) . '"></div>';
+        $html .= '<div class="card"><h2>Chats por día</h2>' . ($any ? $chart . '<p class="muted">Pasa el ratón por el gráfico para ver las cifras de cada día.</p>' : '<p class="muted">Sin chats en este periodo.</p>') . '</div>';
 
         // Tablas por agente y por canal (con la columna «antes» al comparar).
         $prev = function ($x) { return '<td class="prev">' . $x . '</td>'; };
