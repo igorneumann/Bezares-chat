@@ -84,10 +84,8 @@ class Settings
                 array('k' => 'translate_enabled', 'label' => 'Traducción automática', 'type' => 'bool', 'def' => 1, 'help' => 'Los mensajes que no estén en español ni inglés se traducen para el equipo, y las respuestas se envían traducidas al idioma del cliente.'),
                 array('k' => 'openai_key', 'label' => 'API key de OpenAI', 'type' => 'secret', 'def' => ''),
                 array('k' => 'openai_model', 'label' => 'Modelo', 'type' => 'text', 'def' => 'gpt-5.6-luna', 'help' => 'Cualquier modelo de chat disponible en tu cuenta de OpenAI.'),
-                array('k' => 'openai_credit_info', 'label' => 'Crédito disponible', 'type' => 'info', 'def' => '', 'help' => ''),
-                array('k' => 'openai_credit', 'label' => 'Saldo de OpenAI (USD)', 'type' => 'text', 'def' => '', 'help' => 'El saldo de tu cuenta en platform.openai.com → Billing (por ejemplo 50 o 120,50). Vacío = no mostrar el crédito.'),
-                array('k' => 'openai_credit_date', 'label' => 'Fecha de ese saldo (AAAA-MM-DD)', 'type' => 'text', 'def' => '', 'help' => 'El día en que tenías ese saldo. Desde ese día se resta lo gastado.'),
-                array('k' => 'openai_admin_key', 'label' => 'Clave de administrador de OpenAI (opcional)', 'type' => 'secret', 'def' => '', 'help' => 'Empieza por sk-admin- (Settings → Admin keys). Con ella se resta el gasto real de la organización en vez del estimado. Solo se usa para leer el gasto.'),
+                array('k' => 'openai_credit_info', 'label' => 'Gasto de OpenAI del mes', 'type' => 'info', 'def' => '', 'help' => ''),
+                array('k' => 'openai_admin_key', 'label' => 'Clave de administrador de OpenAI (opcional)', 'type' => 'secret', 'def' => '', 'help' => 'Empieza por sk-admin- (Settings → Admin keys). Con ella se muestra el gasto real del mes de tu organización en vez del estimado. Solo se usa para leer el gasto.'),
                 array('k' => 'agent_lang', 'label' => 'Idioma del equipo (código ISO)', 'type' => 'text', 'def' => 'es'),
             )),
             array('group' => 'WhatsApp y Facebook', 'fields' => array(
