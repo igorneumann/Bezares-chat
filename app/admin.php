@@ -584,6 +584,14 @@ th.prev,td.prev{color:var(--muted);font-size:13px}
   .main{padding:20px 16px 50px}
   .split,.grid2{grid-template-columns:1fr}
 }
+/* Listados archivados por mes (Chats, Publicaciones): cabecera plegable de cada mes */
+tr.mhead td{background:rgba(127,140,155,.08);padding:0!important}
+tr.mhead button{all:unset;box-sizing:border-box;display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;width:100%;padding:10px 14px;cursor:pointer;font-size:14px;color:var(--text)}
+tr.mhead button:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+tr.mhead .muted{margin-left:auto;font-size:13px}
+tr.mhead .chev{width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin:0 3px 3px;flex:none}
+tbody.mgroup.closed .chev{transform:rotate(-45deg);margin-bottom:0}
+tbody.mgroup.closed tr:not(.mhead){display:none!important}
 CSS;
     }
 
@@ -1301,7 +1309,7 @@ CSS;
         self::check_csrf();
         $back = array();
         foreach (isset($_POST['back']) && is_array($_POST['back']) ? $_POST['back'] : array() as $k => $v) {
-            if (in_array($k, array('id', 'q', 'ch', 'st', 'ag', 'from', 'to', 'pg'), true) && is_string($v)) {
+            if (in_array($k, array('id', 'v', 'q', 'ch', 'st', 'ag', 'from', 'to', 'pg'), true) && is_string($v)) {
                 $back[$k] = mb_substr($v, 0, 100); // la página vuelve a comprobar cada filtro
             }
         }
@@ -1339,8 +1347,12 @@ CSS;
         foreach (Auth::agents() as $a) {
             $names[(int) $a['id']] = $a['name'];
         }
+        // Pestañas: los abiertos aparte; los resueltos y cerrados, archivados por mes. Cada una admite solo sus estados.
+        $views = array('abiertos' => 'Abiertos', 'cerrados' => 'Resueltos y cerrados', 'todos' => 'Todos');
+        $viewStates = array('abiertos' => array('', 'waiting', 'unassigned'), 'cerrados' => array('', 'resolved', 'closed'), 'todos' => array_keys($states));
         // Filtros: solo valores conocidos. Se conservan al abrir un chat y al volver.
         $f = array(
+            'v'     => isset($views[$get('v')]) ? $get('v') : '',
             'q'     => mb_substr($get('q'), 0, 100),
             'ch'    => isset(self::CHANNELS[$get('ch')]) ? $get('ch') : '',
             'st'    => isset($states[$get('st')]) ? $get('st') : '',
@@ -1371,14 +1383,6 @@ CSS;
             $w[] = 'c.assigned_to = ?';
             $args[] = (int) $f['ag'];
         }
-        if ($f['st'] === 'open' || $f['st'] === 'resolved' || $f['st'] === 'closed') {
-            $w[] = 'c.status = ?';
-            $args[] = $f['st'];
-        } elseif ($f['st'] === 'waiting') {
-            $w[] = "c.status = 'open' AND c.last_customer_at > GREATEST(c.last_agent_at, c.window_notice_at)";
-        } elseif ($f['st'] === 'unassigned') {
-            $w[] = "c.status = 'open' AND c.assigned_to = 0";
-        }
         // Fechas: chats con actividad dentro del periodo.
         if ($f['from'] !== '') {
             $w[] = 'c.updated_at >= ?';
@@ -1400,9 +1404,34 @@ CSS;
             }
             $w[] = '(' . implode(' OR ', $or) . ')';
         }
-        $where = implode(' AND ', $w);
         // Una fila por persona (mismo correo o teléfono), como en el programa de Windows.
         $pk = "CASE WHEN c.email <> '' THEN CONCAT('e:', LOWER(c.email)) WHEN c.phone <> '' THEN CONCAT('p:', c.phone) ELSE CONCAT('c:', c.id) END";
+        // Contador de cada pestaña con los mismos filtros (sin el de estado)
+        $viewCond = array('abiertos' => "c.status = 'open'", 'cerrados' => "c.status IN ('resolved', 'closed')", 'todos' => '1 = 1');
+        $base = implode(' AND ', $w);
+        $counts = array();
+        foreach ($viewCond as $k => $cond) {
+            $counts[$k] = (int) DB::val("SELECT COUNT(DISTINCT $pk) FROM conversations c WHERE $base AND $cond", $args);
+        }
+        // Sin pestaña elegida: los abiertos si hay alguno; si no, el archivo
+        $view = $f['v'] !== '' ? $f['v'] : ($counts['abiertos'] ? 'abiertos' : 'cerrados');
+        if (!in_array($f['st'], $viewStates[$view], true)) {
+            $f['st'] = '';
+            unset($keep['st']);
+        }
+        $filters = $keep;
+        unset($filters['v']);
+        $keep = array('v' => $view) + $filters;
+        $w[] = $viewCond[$view];
+        if ($f['st'] === 'open' || $f['st'] === 'resolved' || $f['st'] === 'closed') {
+            $w[] = 'c.status = ?';
+            $args[] = $f['st'];
+        } elseif ($f['st'] === 'waiting') {
+            $w[] = "c.status = 'open' AND c.last_customer_at > GREATEST(c.last_agent_at, c.window_notice_at)";
+        } elseif ($f['st'] === 'unassigned') {
+            $w[] = "c.status = 'open' AND c.assigned_to = 0";
+        }
+        $where = implode(' AND ', $w);
         $total = (int) DB::val("SELECT COUNT(DISTINCT $pk) FROM conversations c WHERE $where", $args);
         $per = 30;
         $pages = max(1, (int) ceil($total / $per));
@@ -1417,20 +1446,59 @@ CSS;
             }
             return $o;
         };
-        $html = '<form method="get" action="/admin/chats" class="card chat-bar">'
+        $html = '<div class="tabs" role="tablist">';
+        foreach ($views as $k => $l) {
+            $html .= '<a class="btn' . ($k === $view ? ' on' : '') . '" href="/admin/chats?' . self::h(http_build_query(array('v' => $k) + $filters)) . '"' . ($k === $view ? ' aria-current="page"' : '') . '>'
+                . self::h($l) . ' <span class="badge b-off">' . $counts[$k] . '</span></a>';
+        }
+        $html .= '</div><form method="get" action="/admin/chats" class="card chat-bar"><input type="hidden" name="v" value="' . self::h($view) . '">'
             . '<div class="field q"><label for="q">Buscar</label><input id="q" type="text" name="q" maxlength="100" value="' . self::h($f['q']) . '" placeholder="Nombre, correo, teléfono o texto del chat"></div>'
             . '<div class="field"><label for="ch">Canal</label><select id="ch" name="ch">' . $opts(array('' => 'Todos') + self::CHANNELS, $f['ch']) . '</select></div>'
-            . '<div class="field"><label for="st">Estado</label><select id="st" name="st">' . $opts($states, $f['st']) . '</select></div>'
+            . '<div class="field"><label for="st">Estado</label><select id="st" name="st">' . $opts(array_intersect_key($states, array_flip($viewStates[$view])), $f['st']) . '</select></div>'
             . '<div class="field"><label for="ag">Atiende</label><select id="ag" name="ag">' . $opts(array('' => 'Cualquiera') + $names, $f['ag']) . '</select></div>'
             . '<div class="field"><label for="from">Desde</label><input id="from" type="date" name="from" value="' . self::h($f['from']) . '"></div>'
             . '<div class="field"><label for="to">Hasta</label><input id="to" type="date" name="to" value="' . self::h($f['to']) . '"></div>'
             . '<button class="btn btn-primary">Buscar</button></form>';
 
+        // En el archivo, las filas van por meses (de la última actividad), con un resumen de cada mes
+        $byMonth = $view === 'cerrados';
+        $tbodies = '';
         $rows = '';
+        $month = null;
+        $flush = function () use (&$tbodies, &$rows, &$month, $byMonth, $where, $args) {
+            if ($rows === '') {
+                return;
+            }
+            if (!$byMonth) {
+                $tbodies .= '<tbody>' . $rows . '</tbody>';
+            } else {
+                $start = new DateTimeImmutable($month . '-01 00:00:00', tz());
+                $s = DB::row("SELECT COUNT(*) AS n, SUM(c.channel = 'web') AS web, SUM(c.channel = 'whatsapp') AS whatsapp, SUM(c.channel = 'facebook') AS facebook,
+                    AVG(CASE WHEN c.first_response_at > c.created_at THEN c.first_response_at - c.created_at END) AS fr
+                    FROM conversations c WHERE $where AND c.updated_at >= ? AND c.updated_at < ?",
+                    array_merge($args, array($start->getTimestamp() * 1000, $start->modify('+1 month')->getTimestamp() * 1000)));
+                $sum = array(((int) $s['n'] === 1 ? '1 chat' : (int) $s['n'] . ' chats'));
+                foreach (self::CHANNELS as $k => $l) {
+                    if ((int) $s[$k]) {
+                        $sum[] = (int) $s[$k] . ' ' . $l;
+                    }
+                }
+                if ($s['fr'] !== null) {
+                    $sum[] = '1.ª respuesta media ' . self::dur((int) round($s['fr']));
+                }
+                $tbodies .= self::month_group(self::month_label($month), implode(' · ', $sum), $tbodies === '', 6, $rows);
+            }
+            $rows = '';
+        };
         foreach ($groups as $g) {
             $c = Core::conv($g['last_id']);
             if (!$c) {
                 continue;
+            }
+            $ym = self::when($g['u'], 'Y-m');
+            if ($byMonth && $ym !== $month) {
+                $flush();
+                $month = $ym;
             }
             $n = (int) $g['n'];
             $asg = (int) $c['assigned_to'];
@@ -1442,6 +1510,7 @@ CSS;
                 . '<td><small>' . self::when($c['updated_at']) . '</small></td>'
                 . '<td class="actions">' . ($c['status'] === 'open' ? self::resolve_button($me, $c, $keep + ($page > 1 ? array('pg' => $page) : array())) . ' ' : '') . self::nav_button('Ver', '/admin/chats', 'btn btn-secondary btn-sm', array('id' => (int) $c['id']) + $keep + ($page > 1 ? array('pg' => $page) : array())) . '</td></tr>';
         }
+        $flush();
         $pager = '';
         if ($pages > 1) {
             $pager = '<div class="pager"><div>' . ($page > 1 ? self::nav_button('← Más recientes', '/admin/chats', 'btn btn-secondary btn-sm', $keep + array('pg' => $page - 1)) : '') . '</div>'
@@ -1450,10 +1519,26 @@ CSS;
         }
         $html .= '<div class="card">'
             . '<div class="pager" style="margin:0 0 12px"><span class="muted">' . ($total === 1 ? '1 conversación' : $total . ' conversaciones') . '</span>'
-            . ($keep ? self::nav_button('Quitar filtros', '/admin/chats', 'btn btn-ghost btn-sm') : '') . '</div>'
-            . ($rows ? '<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Canal</th><th>Estado</th><th>Atiende</th><th>Última actividad</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>' . $pager
-                : '<p class="muted">' . ($keep ? 'Ningún chat coincide con estos filtros.' : 'Todavía no hay chats.') . '</p>') . '</div>';
+            . ($filters ? self::nav_button('Quitar filtros', '/admin/chats', 'btn btn-ghost btn-sm', array('v' => $view)) : '') . '</div>'
+            . ($tbodies ? '<div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Canal</th><th>Estado</th><th>Atiende</th><th>Última actividad</th><th></th></tr></thead>' . $tbodies . '</table></div>' . $pager
+                : '<p class="muted">' . ($filters ? 'Ningún chat coincide con estos filtros.' : ($view === 'abiertos' ? 'No hay chats abiertos.' : ($view === 'cerrados' ? 'Todavía no hay chats resueltos ni cerrados.' : 'Todavía no hay chats.'))) . '</p>') . '</div>';
         self::layout('Chats', 'Consulta de todos los chats del equipo', $html, $me);
+    }
+
+    /** «Noviembre 2026» a partir de «2026-11». */
+    private static function month_label($ym)
+    {
+        $m = array('', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre');
+        $p = explode('-', (string) $ym);
+        return isset($p[1], $m[(int) $p[1]]) && (int) $p[1] ? $m[(int) $p[1]] . ' ' . $p[0] : 'Sin fecha';
+    }
+
+    /** Filas de un mes en un bloque plegable, con su resumen en la cabecera (app.js abre y pliega con data-month-toggle). */
+    private static function month_group($label, $summary, $open, $cols, $rows)
+    {
+        return '<tbody class="mgroup' . ($open ? '' : ' closed') . '"><tr class="mhead"><td colspan="' . (int) $cols . '">'
+            . '<button type="button" aria-expanded="' . ($open ? 'true' : 'false') . '" data-month-toggle><span class="chev" aria-hidden="true"></span>'
+            . '<b>' . self::h($label) . '</b><span class="muted">' . self::h($summary) . '</span></button></td></tr>' . $rows . '</tbody>';
     }
 
     /** Conversación completa de la persona del chat $c: todos sus chats y canales en un solo hilo (solo lectura). */

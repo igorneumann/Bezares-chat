@@ -128,3 +128,12 @@
     setTimeout(function () { if (!touched && !uploading && !document.querySelector('form[data-sent]')) location.reload(); }, 6000);
   }
 })();
+
+// Listados archivados por mes (Chats, Publicaciones): la cabecera de cada mes lo abre y lo pliega
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('[data-month-toggle]');
+  if (!b) return;
+  var g = b.closest('tbody');
+  g.classList.toggle('closed');
+  b.setAttribute('aria-expanded', String(!g.classList.contains('closed')));
+});
