@@ -2293,7 +2293,7 @@ CSS;
                 . '<label class="switch"><input type="checkbox" role="switch" name="tech" value="1" ' . (Assistant::technical() ? 'checked' : '') . '><span><b>Contestar preguntas técnicas en cualquier país</b><small>Solo si la respuesta está en los catálogos o en los demás recursos. Vale también para los países de abajo y aunque la instrucción diga otra cosa.</small></span></label>'
                 . '<div class="field"><label for="ai_i">Instrucción</label><textarea id="ai_i" name="instruction" rows="6" maxlength="4000">' . self::h(Assistant::instruction()) . '</textarea></div>'
                 . '<div class="field"><label for="ai_b">Países que no redirecciona al contacto local</label><input type="text" id="ai_b" name="block" maxlength="200" value="' . self::h(implode(', ', Assistant::blocked())) . '" placeholder="ES"><small>Códigos de dos letras separados por comas (ES = España). A estos clientes no se les da el contacto, diga lo que diga la instrucción: solo se les contestan las preguntas técnicas, si están activadas arriba. Se mira el país detectado y el que diga el cliente.</small></div>'
-                . '<div class="field"><label for="ai_m">Modelo (opcional)</label><input type="text" id="ai_m" name="model" maxlength="60" value="' . self::h((string) Settings::get('ai_model')) . '" placeholder="' . self::h(Settings::get('openai_model') ?: 'gpt-4o-mini') . '"><small>Vacío: el mismo que la traducción. Usa la API key de Configuración → Traducción.</small></div>'
+                . '<div class="field"><label for="ai_m">Modelo (opcional)</label><input type="text" id="ai_m" name="model" maxlength="60" value="' . self::h((string) Settings::get('ai_model')) . '" placeholder="' . self::h(Settings::get('openai_model') ?: 'gpt-5.6-luna') . '"><small>Vacío: el mismo que la traducción. Usa la API key de Configuración → Traducción.</small></div>'
                 . '<div class="filters"><button class="btn btn-primary">💾 Guardar</button></div>')
             . (Assistant::instruction() !== Assistant::INSTRUCTION ? $form('default', '<label class="check"><input type="checkbox" name="confirm" value="1" required> confirmar</label> <button class="btn btn-ghost btn-sm">Recuperar la instrucción predeterminada</button>', 'class="inline"') : '') . '</div>';
 
@@ -2397,7 +2397,7 @@ CSS;
             $state = 'Activada, todavía sin traducciones registradas. Pulsa «Probar traducción».';
         }
         return '<form method="post" class="card">' . self::csrf_field() . '<input type="hidden" name="action" value="testai"><input type="hidden" name="tab" value="' . (int) $tab . '">'
-            . '<h2>🌐 Probar la traducción</h2><div class="info-box">' . $state . '<br>Modelo: <b>' . self::h(Settings::get('openai_model') ?: 'gpt-4o-mini') . '</b>. '
+            . '<h2>🌐 Probar la traducción</h2><div class="info-box">' . $state . '<br>Modelo: <b>' . self::h(Settings::get('openai_model') ?: 'gpt-5.6-luna') . '</b>. '
             . 'Errores habituales: 401 = API key incorrecta o revocada · 429 = sin saldo o límite de la cuenta de OpenAI · 404 = el modelo no existe en tu cuenta.</div>'
             . '<div class="filters"><button class="btn btn-secondary">Probar traducción</button></div></form>';
     }
@@ -2452,6 +2452,9 @@ CSS;
             case 'robot':
                 return ''; // pasos propios: se editan en el diagrama (ver robot)
             case 'info':
+                if ($f['k'] === 'openai_credit_info') {
+                    return Credit::box(function ($s) { return self::h($s); });
+                }
                 return '<div class="info-box"><b>' . self::h($f['label']) . ':</b> ' . self::h($f['help']) . '</div>';
             case 'bool':
                 return '<label class="switch"><input type="checkbox" role="switch" name="' . $k . '" value="1" ' . ((int) $v ? 'checked' : '') . '><span><b>' . self::h($f['label']) . '</b>' . $help . '</span></label>';

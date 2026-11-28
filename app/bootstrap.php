@@ -25,6 +25,7 @@ require __DIR__ . '/http.php';
 require __DIR__ . '/settings.php';
 require __DIR__ . '/hours.php';
 require __DIR__ . '/ai.php';
+require __DIR__ . '/credit.php';
 require __DIR__ . '/media.php';
 require __DIR__ . '/channels.php';
 require __DIR__ . '/core.php';

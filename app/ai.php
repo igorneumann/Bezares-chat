@@ -46,19 +46,24 @@ class AI
             self::$lastError = self::disabled_reason();
             return null;
         }
-        $r = Http::json('POST', 'https://api.openai.com/v1/chat/completions', array(
-            'model'           => Settings::get('openai_model') ?: 'gpt-4o-mini',
-            'temperature'     => 0,
+        $model = Settings::get('openai_model') ?: 'gpt-5.6-luna';
+        $body = array(
+            'model'           => $model,
             'response_format' => array('type' => 'json_object'),
             'messages'        => array(
                 array('role' => 'system', 'content' => $system),
                 array('role' => 'user', 'content' => $user),
             ),
-        ), array('Authorization' => 'Bearer ' . Settings::get('openai_key')), 20);
+        );
+        if (preg_match('/^gpt-[34]/', $model)) { // los modelos de razonamiento (GPT-5 y posteriores) no la admiten
+            $body['temperature'] = 0;
+        }
+        $r = Http::json('POST', 'https://api.openai.com/v1/chat/completions', $body, array('Authorization' => 'Bearer ' . Settings::get('openai_key')), 20);
         if ($r['status'] !== 200 || empty($r['json']['choices'][0]['message']['content'])) {
             $detail = $r['error'] ?: (isset($r['json']['error']['message']) ? $r['json']['error']['message'] : substr($r['body'], 0, 300));
             return self::fail('HTTP ' . $r['status'] . ': ' . $detail);
         }
+        Credit::track($model, isset($r['json']['usage']) ? $r['json']['usage'] : null);
         $d = json_decode($r['json']['choices'][0]['message']['content'], true);
         if (!is_array($d)) {
             return self::fail('respuesta no válida del modelo');

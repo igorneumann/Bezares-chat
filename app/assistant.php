@@ -68,7 +68,7 @@ class Assistant
 
     public static function model()
     {
-        return (string) (Settings::get('ai_model') ?: (Settings::get('openai_model') ?: 'gpt-4o-mini'));
+        return (string) (Settings::get('ai_model') ?: (Settings::get('openai_model') ?: 'gpt-5.6-luna'));
     }
 
     public static function rows()
@@ -118,6 +118,8 @@ class Assistant
             $err = (string) ($d['error']['message'] ?? ($r['error'] ?: 'sin respuesta'));
             // Por si OpenAI repitiera la clave en el error: nunca se guarda ni se muestra.
             $err = 'HTTP ' . $r['status'] . ': ' . mb_substr(preg_replace('/sk-[\w\-*]+/', '…', $err), 0, 250);
+        } elseif ($path === 'responses') {
+            Credit::track((string) (json_decode((string) $body, true)['model'] ?? ''), $d['usage'] ?? null);
         }
         return array($r['status'], $d, $err);
     }
